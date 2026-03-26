@@ -1,8 +1,19 @@
 # Agent Sentinel Extension — Phase Plan
 
-> **Status**: Draft
+> **Status**: In Progress
 > **Date**: 2026-03-25
 > **Companion to**: [Vision & Product Requirements](vision-and-requirements.md) · [Architecture Design](architecture.md)
+
+**Current Status** (2026-03-25):
+| Phase | Status |
+|-------|--------|
+| Phase 0: Sentinel Foundation | Complete |
+| Phase 1: Extension Scaffold + Core Experience | Complete (+ QC pass) |
+| Phase 2: Rich Dashboard + Eval Management | Complete |
+| Phase 3: Sentinel Interaction | Complete |
+| Phase 4: Cross-Harness Support | Complete (+ QC pass) |
+| Phase 5: Extension API + Commercial Foundation | Deferred |
+| Phase 6: Polish, Marketplace, Community | **In progress** |
 
 ---
 
@@ -68,7 +79,7 @@ Phase 6: Polish, Marketplace, Community
    (docs site, community evals, marketplace optimization)
 ```
 
-**Key**: Phases 2 and 3 can be developed in parallel. Phase 4 depends on both. Phases 5 and 6 are sequential.
+**Key**: Phases 2 and 3 can be developed in parallel. Phase 4 depends on both. Phase 5 is deferred; Phase 6 is being executed next.
 
 ---
 
@@ -1163,6 +1174,8 @@ Phase 4 is complete when ALL of the following are true:
 
 ## Phase 5: Extension API + Commercial Foundation
 
+> **DEFERRED**: Phase 5 is deferred until the free extension is validated through internal use. Phase 6 (Polish, Quality, Community) is being executed first to harden the extension. The commercial extension infrastructure will be built when the product is ready for a commercial layer. Decision made 2026-03-25.
+
 **Goal**: agent-sentinel-extension becomes a platform that volition-extension builds on — with a stable, documented API surface.
 
 **Prerequisites**: Phase 1–3 complete (API surface informed by real usage). Phase 4 recommended but not required.
@@ -1316,9 +1329,11 @@ Phase 5 is complete when ALL of the following are true:
 
 ## Phase 6: Polish, Marketplace, Community
 
+> **EXECUTION ORDER CHANGE**: Phase 6 is being executed before Phase 5. The free extension needs hardening (security audit, performance profiling, accessibility audit, documentation) before building commercial infrastructure. Phase 5 is deferred.
+
 **Goal**: Make agent-sentinel-extension one of the most popular GitHub projects in its category — through documentation, community infrastructure, and marketplace optimization.
 
-**Prerequisites**: Phases 1–3 complete (core product polished). Phase 5 recommended.
+**Prerequisites**: Phases 1–3 complete (core product polished). ~~Phase 5 recommended.~~ Phase 5 deferred; Phase 6 proceeds independently.
 
 **Expertise required**: Technical writing, design (screenshots/GIFs), accessibility audit, performance engineering
 
