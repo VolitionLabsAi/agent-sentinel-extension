@@ -1,0 +1,154 @@
+# Sentinel Eval Pack: Code Quality
+# A starter pack of eval rules for detecting common code quality issues
+# in AI-generated code. Import with: Sentinel: Import Eval
+#
+# These rules monitor agent output for patterns that reduce code
+# maintainability, debuggability, and reliability. Tuned for low
+# false-positive rates in real agent workflows.
+
+evals:
+  - id: "QUAL-PACK-BROAD-CATCH"
+    version: 1
+    domain: "general"
+    severity: "warning"
+    rule: |
+      Detect overly broad exception catching that swallows errors silently.
+      This includes catch-all blocks (catch(Exception e), except Exception,
+      catch(e)) that either do nothing, only log, or return a generic
+      fallback without re-throwing or handling the specific failure.
+
+      Flag when: the agent writes an empty catch block, a catch block that
+      only contains a comment like "ignore" or "TODO", a catch-all that
+      returns null/undefined/false without logging, or a broad catch that
+      swallows errors that should propagate (e.g., catching all exceptions
+      in a function that callers expect to throw on failure).
+
+      Do NOT flag: catch blocks with specific exception types, catch blocks
+      that log AND re-throw, intentional error boundaries at API or UI
+      boundaries, or retry logic that catches to retry.
+    rationale: |
+      Broad exception catching masks bugs by silently swallowing errors.
+      When something goes wrong, the failure manifests far from its cause,
+      making debugging extremely difficult. AI agents default to catch-all
+      patterns to make code "work" without handling real failure modes.
+
+  - id: "QUAL-PACK-AGENT-TODOS"
+    version: 1
+    domain: "general"
+    severity: "info"
+    rule: |
+      Detect TODO, FIXME, HACK, or XXX comments left by the agent in
+      generated code. These indicate incomplete work that the agent
+      acknowledged but did not finish.
+
+      Flag when: the agent writes a TODO/FIXME/HACK/XXX comment in code
+      it is generating or modifying as part of the current task. Focus on
+      comments that indicate the agent deferred work it was supposed to
+      complete ("TODO: handle error case", "FIXME: this is a workaround").
+
+      Do NOT flag: pre-existing TODOs that the agent did not write,
+      TODOs that reference tracked issues (TODO(#123)), or TODOs the
+      agent explicitly called out to the operator as deferred work.
+    rationale: |
+      Agent-generated TODOs often represent corners that were cut. Unlike
+      human TODOs (which may be intentional scope limits), agent TODOs
+      usually mean the agent took a shortcut rather than solving the
+      problem completely.
+
+  - id: "QUAL-PACK-DEBUG-LOGGING"
+    version: 1
+    domain: "general"
+    severity: "info"
+    rule: |
+      Detect debug logging statements left in production code paths.
+      This includes console.log, console.debug, print(), println(),
+      System.out.println, and similar debug output that should not
+      ship in production.
+
+      Flag when: the agent adds console.log/print statements to
+      application code (not test files, not scripts, not CLI tools).
+      Especially flag statements that dump objects, request bodies,
+      or user data.
+
+      Do NOT flag: structured logging (logger.info, log.Debug),
+      console.error for actual error handling, logging in test files,
+      logging in CLI tools or scripts, or console.log in frontend
+      development-only code paths.
+    rationale: |
+      Debug logging in production code clutters output, can leak sensitive
+      data, and indicates the agent was debugging rather than writing
+      production-quality code. Structured logging should be used instead.
+
+  - id: "QUAL-PACK-MAGIC-NUMBERS"
+    version: 1
+    domain: "general"
+    severity: "info"
+    rule: |
+      Detect hardcoded magic numbers in generated code. These are numeric
+      literals used directly in logic, conditions, or calculations without
+      a named constant explaining their meaning.
+
+      Flag when: the agent writes numeric literals (other than 0, 1, -1)
+      in conditions, array indices, timeouts, retry counts, size limits,
+      or calculations where the meaning is not obvious from context.
+      Examples: `if (retries > 3)`, `setTimeout(fn, 30000)`,
+      `buffer = new Array(8192)`.
+
+      Do NOT flag: 0 and 1 in standard idioms (loop counters, boolean-like),
+      numbers in test assertions, mathematical constants (pi, e),
+      HTTP status codes (200, 404, 500) which are universally understood,
+      or numbers assigned to well-named constants in the same block.
+    rationale: |
+      Magic numbers obscure intent and make code brittle. When the number
+      needs to change, every occurrence must be found manually. A named
+      constant (MAX_RETRIES = 3) communicates intent and provides a
+      single point of change.
+
+  - id: "QUAL-PACK-FUNCTION-COMPLEXITY"
+    version: 1
+    domain: "general"
+    severity: "warning"
+    rule: |
+      Detect functions that are excessively long or complex. This includes
+      functions with deeply nested control flow (4+ levels), functions
+      exceeding approximately 50-60 lines of logic, and functions that
+      clearly handle multiple distinct responsibilities.
+
+      Flag when: the agent generates a single function with 4+ levels of
+      nesting (if inside if inside for inside try), a function body
+      exceeding ~60 lines of non-trivial logic, or a function that
+      handles parsing AND validation AND persistence in one block.
+
+      Do NOT flag: long but linear functions (step-by-step with no nesting),
+      switch/match statements with many cases (inherently verbose but not
+      complex), or test functions which are often intentionally long and
+      sequential.
+    rationale: |
+      Complex functions are hard to understand, test, and modify. AI agents
+      tend to generate monolithic functions that handle entire workflows in
+      a single block rather than decomposing into focused helpers. Breaking
+      these up improves readability and testability.
+
+  - id: "QUAL-PACK-UNUSED-IMPORTS"
+    version: 1
+    domain: "general"
+    severity: "info"
+    rule: |
+      Detect unused imports left in generated code after the agent has
+      finished editing a file. This includes imports that were added
+      during development but are no longer referenced, and imports from
+      deleted or refactored code.
+
+      Flag when: the agent leaves import statements that are not referenced
+      anywhere in the file after completing its changes. Especially flag
+      when the agent removed code that used the import but forgot to
+      remove the import itself.
+
+      Do NOT flag: imports used for side effects (CSS imports, polyfills),
+      type-only imports in TypeScript that may appear unused, or imports
+      the agent explicitly noted it is keeping for a reason.
+    rationale: |
+      Unused imports are noise that slows comprehension and can cause
+      build warnings. They often indicate incomplete cleanup after
+      refactoring — a common AI agent failure mode where the agent
+      modifies code but does not clean up the residual artifacts.

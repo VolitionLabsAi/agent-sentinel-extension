@@ -27,6 +27,7 @@ import { SentinelConversationPanel } from './ui/webview/sentinel-panel/panel.js'
 import { steerSentinel } from './commands/steer-sentinel.js';
 import { HarnessConfigResolver } from './ui/settings/harness-config.js';
 import { generateEvalFromDescription } from './evals/eval-creator.js';
+import { exportEval, importEvalPack } from './evals/eval-import-export.js';
 
 /** Derive sentinel file paths for a workspace folder. */
 function sentinelPaths(folder: vscode.WorkspaceFolder) {
@@ -422,6 +423,109 @@ export function activate(context: vscode.ExtensionContext) {
                 evalEditorPanel.show(text, filePath);
             } catch (err) {
                 void vscode.window.showErrorMessage(`Failed to open eval file: ${err}`);
+            }
+        }),
+    );
+
+    // --- P6-2: Eval Import/Export ---
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('sentinel.exportEval', async (arg?: EvalRuleTreeItem) => {
+            let rule: import('./types/eval-rule.js').EvalRule | undefined;
+
+            if (arg instanceof EvalRuleTreeItem && arg.rule) {
+                rule = arg.rule;
+            } else {
+                // Let user pick from available rules
+                const allRules = configManager.getEvalRules();
+                if (allRules.length === 0) {
+                    void vscode.window.showInformationMessage('No eval rules available to export.');
+                    return;
+                }
+
+                const items = allRules.map((r) => ({
+                    label: r.id,
+                    description: `${r.severity} — ${r.domainRaw}`,
+                    detail: r.rule.slice(0, 80),
+                    rule: r,
+                }));
+
+                const picked = await vscode.window.showQuickPick(items, {
+                    placeHolder: 'Select an eval rule to export',
+                });
+
+                if (!picked) { return; }
+                rule = picked.rule;
+            }
+
+            if (!rule) { return; }
+
+            const uri = await vscode.window.showSaveDialog({
+                defaultUri: vscode.Uri.file(`${rule.id.toLowerCase()}.yaml`),
+                filters: { 'YAML Files': ['yaml', 'yml'] },
+                title: 'Export Eval Rule',
+            });
+
+            if (!uri) { return; }
+
+            try {
+                await exportEval(rule, uri.fsPath);
+                void vscode.window.showInformationMessage(`Eval ${rule.id} exported to ${uri.fsPath}`);
+            } catch (err) {
+                void vscode.window.showErrorMessage(`Failed to export eval: ${err}`);
+            }
+        }),
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('sentinel.importEval', async () => {
+            const uris = await vscode.window.showOpenDialog({
+                canSelectMany: false,
+                filters: { 'YAML Files': ['yaml', 'yml'] },
+                title: 'Import Eval Rule(s)',
+            });
+
+            if (!uris || uris.length === 0) { return; }
+
+            const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+            if (!workspaceRoot) {
+                void vscode.window.showErrorMessage('No workspace folder open — cannot import eval.');
+                return;
+            }
+
+            const targetDir = path.join(workspaceRoot, '.volition', 'sentinel', 'evals');
+            const filePath = uris[0].fsPath;
+
+            // Try as pack first (multi-eval), fall back to single
+            const results = await importEvalPack(filePath, targetDir);
+
+            const succeeded = results.filter((r) => r.success);
+            const conflicts = results.filter((r) => r.conflict);
+            const failures = results.filter((r) => !r.success && !r.conflict);
+
+            const messages: string[] = [];
+            if (succeeded.length > 0) {
+                messages.push(`Imported ${succeeded.length} eval(s): ${succeeded.map((r) => r.evalId).join(', ')}`);
+            }
+            if (conflicts.length > 0) {
+                messages.push(`Skipped ${conflicts.length} (ID conflict): ${conflicts.map((r) => r.evalId).join(', ')}`);
+            }
+            if (failures.length > 0) {
+                messages.push(`Failed ${failures.length}: ${failures.map((r) => r.error).join('; ')}`);
+            }
+
+            const summary = messages.join('\n');
+
+            if (failures.length > 0 || conflicts.length > 0) {
+                void vscode.window.showWarningMessage(summary);
+            } else {
+                void vscode.window.showInformationMessage(summary);
+            }
+
+            // Refresh config and eval rules
+            if (succeeded.length > 0) {
+                await configManager.load();
+                evalRulesProvider.refresh();
             }
         }),
     );

@@ -116,6 +116,16 @@
         "command": "sentinel.selectHarness",
         "title": "Sentinel: Select Harness",
         "icon": "$(server-process)"
+      },
+      {
+        "command": "sentinel.exportEval",
+        "title": "Sentinel: Export Eval",
+        "icon": "$(export)"
+      },
+      {
+        "command": "sentinel.importEval",
+        "title": "Sentinel: Import Eval",
+        "icon": "$(import)"
       }
     ],
     "menus": {
@@ -132,6 +142,11 @@
         },
         {
           "command": "sentinel.createEval",
+          "when": "view == sentinel.evalRules",
+          "group": "navigation"
+        },
+        {
+          "command": "sentinel.importEval",
           "when": "view == sentinel.evalRules",
           "group": "navigation"
         },
@@ -161,6 +176,11 @@
           "command": "sentinel.editEval",
           "when": "viewItem == evalRule.dynamic",
           "group": "1_edit@1"
+        },
+        {
+          "command": "sentinel.exportEval",
+          "when": "viewItem == evalRule.enabled || viewItem == evalRule.disabled",
+          "group": "2_share@1"
         }
       ]
     },
