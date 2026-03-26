@@ -67,10 +67,10 @@ suite('E2E: Observation to Live Feed', () => {
         const { observationStore, liveFeedProvider } = ext.exports as {
             observationStore: {
                 onObservationReceived: vscode.Event<PersistentObservation>;
-                getObservations: (filter?: any) => PersistentObservation[];
+                getObservations: (filter?: Record<string, unknown>) => PersistentObservation[];
                 addFolder: (folderKey: string, observationsPath: string) => void;
             };
-            liveFeedProvider: { onDidChangeTreeData: vscode.Event<any> };
+            liveFeedProvider: { onDidChangeTreeData: vscode.Event<void> };
         };
 
         assert.ok(observationStore, 'observationStore not available from extension exports');
@@ -156,7 +156,7 @@ suite('E2E: Observation to Live Feed', () => {
         }
 
         const { observationStore } = ext.exports as {
-            observationStore: { getObservations: (filter?: any) => PersistentObservation[] };
+            observationStore: { getObservations: (filter?: Record<string, unknown>) => PersistentObservation[] };
         };
 
         const testSessionId = `e2e-order-${Date.now()}`;

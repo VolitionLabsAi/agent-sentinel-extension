@@ -73,6 +73,30 @@ const TreeItemCollapsibleState = {
     Expanded: 2,
 };
 
+const StatusBarAlignment = {
+    Left: 1,
+    Right: 2,
+};
+
+class MockStatusBarItem {
+    constructor(alignment, priority) {
+        this.alignment = alignment;
+        this.priority = priority;
+        this.text = '';
+        this.tooltip = undefined;
+        this.color = undefined;
+        this.backgroundColor = undefined;
+        this.command = undefined;
+        this._visible = false;
+    }
+    show() { this._visible = true; }
+    hide() { this._visible = false; }
+    dispose() { this._visible = false; }
+}
+
+// Mutable config store for tests to override
+const _configStore = {};
+
 const vscodeMock = {
     EventEmitter: MockEventEmitter,
     Uri: MockUri,
@@ -81,24 +105,42 @@ const vscodeMock = {
     ThemeColor: MockThemeColor,
     MarkdownString: MockMarkdownString,
     TreeItemCollapsibleState,
+    StatusBarAlignment,
     Disposable: {
         from: (...disposables) => ({
             dispose: () => disposables.forEach(d => d.dispose()),
         }),
+    },
+    commands: {
+        registerCommand: (id, handler) => {
+            // Store handler for potential invocation in tests
+            return { dispose: () => {} };
+        },
     },
     window: {
         tabGroups: {
             all: [],
             onDidChangeTabs: () => ({ dispose: () => {} }),
         },
+        createStatusBarItem: (alignment, priority) => new MockStatusBarItem(alignment, priority),
     },
     workspace: {
-        getConfiguration: () => ({
-            get: () => undefined,
+        getConfiguration: (section) => ({
+            get: (key, defaultValue) => {
+                const fullKey = section ? `${section}.${key}` : key;
+                return fullKey in _configStore ? _configStore[fullKey] : defaultValue;
+            },
         }),
+        onDidChangeConfiguration: () => ({ dispose: () => {} }),
+        workspaceFolders: undefined,
     },
     extensions: {
         getExtension: () => undefined,
+    },
+    // Expose config store for tests to manipulate
+    _test: {
+        configStore: _configStore,
+        MockStatusBarItem,
     },
 };
 

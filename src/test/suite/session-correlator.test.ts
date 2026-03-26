@@ -25,10 +25,6 @@ function makeTempDir(): string {
     return fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-correlator-test-'));
 }
 
-function writeStateFile(filePath: string, sessions: Array<{ session_id: string; transcript_path: string }>): void {
-    fs.writeFileSync(filePath, JSON.stringify({ sessions }), 'utf-8');
-}
-
 suite('SessionCorrelator', () => {
     let tmpDir: string;
     let stateManager: StateManager;

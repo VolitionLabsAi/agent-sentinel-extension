@@ -8,6 +8,17 @@ import { renderSparkline } from '../../ui/charts/sparkline';
 import { renderDonut } from '../../ui/charts/donut';
 import { renderTimeline } from '../../ui/charts/timeline';
 import type { DonutSegment, TimelinePoint } from '../../types/health-metrics';
+import type { EvalRule } from '../../types/eval-rule';
+
+/** Expose private addObservation for perf testing. */
+interface ObservationStoreTestable {
+    addObservation(obs: PersistentObservation): void;
+}
+
+/** Expose private mergedRules for perf testing. */
+interface ConfigManagerTestable {
+    mergedRules: EvalRule[];
+}
 
 suite('Performance Gates', () => {
 
@@ -62,7 +73,7 @@ suite('Performance Gates', () => {
                 // Since addObservation is private, we feed observations through the public API
                 // by directly manipulating — but that requires file I/O.
                 // Instead, we measure the data structure size directly.
-                (store as any).addObservation(obs);
+                (store as unknown as ObservationStoreTestable).addObservation(obs);
             }
         }
 
@@ -101,7 +112,7 @@ suite('Performance Gates', () => {
 
         // Add 2x the max
         for (let i = 0; i < MAX * 2; i++) {
-            (store as any).addObservation(createTestObservation(sessionId, i));
+            (store as unknown as ObservationStoreTestable).addObservation(createTestObservation(sessionId, i));
         }
 
         const obs = store.getObservations({ sessionId });
@@ -124,7 +135,7 @@ suite('Performance Gates', () => {
             const sessionId = `perf-session-${s}`;
             store.addFolder(`perf-folder-${s}`, `/tmp/sentinel-perf-${s}/observations.jsonl`);
             for (let i = 0; i < OBS_PER_SESSION; i++) {
-                (store as any).addObservation(createTestObservation(sessionId, i));
+                (store as unknown as ObservationStoreTestable).addObservation(createTestObservation(sessionId, i));
             }
         }
 
@@ -171,7 +182,7 @@ suite('Performance Gates', () => {
                 enabled: i % 5 !== 0, // 80% enabled
             });
         }
-        (configManager as any).mergedRules = rules;
+        (configManager as unknown as ConfigManagerTestable).mergedRules = rules;
 
         const start = performance.now();
         for (let iter = 0; iter < 100; iter++) {
@@ -194,7 +205,7 @@ suite('Performance Gates', () => {
         store.addFolder('feed-perf', '/tmp/sentinel-feed-perf/observations.jsonl');
 
         for (let i = 0; i < 1000; i++) {
-            (store as any).addObservation(createTestObservation('feed-session', i));
+            (store as unknown as ObservationStoreTestable).addObservation(createTestObservation('feed-session', i));
         }
 
         const provider = new LiveFeedProvider(store);
@@ -220,7 +231,7 @@ suite('Performance Gates', () => {
         store.addFolder('timer-test', '/tmp/sentinel-timer/observations.jsonl');
 
         for (let i = 0; i < 10; i++) {
-            (store as any).addObservation(createTestObservation('timer-session', i));
+            (store as unknown as ObservationStoreTestable).addObservation(createTestObservation('timer-session', i));
         }
 
         store.dispose();
