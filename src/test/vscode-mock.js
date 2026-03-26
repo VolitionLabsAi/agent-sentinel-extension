@@ -41,9 +41,46 @@ class MockUri {
     }
 }
 
+class MockTreeItem {
+    constructor(label, collapsibleState) {
+        this.label = label;
+        this.collapsibleState = collapsibleState ?? 0;
+    }
+}
+
+class MockThemeIcon {
+    constructor(id, color) {
+        this.id = id;
+        this.color = color;
+    }
+}
+
+class MockThemeColor {
+    constructor(id) {
+        this.id = id;
+    }
+}
+
+class MockMarkdownString {
+    constructor(value) {
+        this.value = value ?? '';
+    }
+}
+
+const TreeItemCollapsibleState = {
+    None: 0,
+    Collapsed: 1,
+    Expanded: 2,
+};
+
 const vscodeMock = {
     EventEmitter: MockEventEmitter,
     Uri: MockUri,
+    TreeItem: MockTreeItem,
+    ThemeIcon: MockThemeIcon,
+    ThemeColor: MockThemeColor,
+    MarkdownString: MockMarkdownString,
+    TreeItemCollapsibleState,
     Disposable: {
         from: (...disposables) => ({
             dispose: () => disposables.forEach(d => d.dispose()),

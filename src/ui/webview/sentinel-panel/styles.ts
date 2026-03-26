@@ -15,6 +15,10 @@ export const SENTINEL_PANEL_STYLES = `
     :root {
         --transition-speed: 0ms;
     }
+    * {
+        animation: none !important;
+        transition: none !important;
+    }
 }
 
 * {
@@ -50,12 +54,12 @@ body {
 
 .status-badge.running {
     background: var(--vscode-testing-iconPassed, #388a34);
-    color: #fff;
+    color: var(--vscode-button-foreground, #fff);
 }
 
 .status-badge.stopped {
     background: var(--vscode-disabledForeground, #888);
-    color: #fff;
+    color: var(--vscode-button-foreground, #fff);
 }
 
 .status-dot {
@@ -66,11 +70,11 @@ body {
 }
 
 .status-badge.running .status-dot {
-    background: #6fbf73;
+    background: var(--vscode-charts-green, #6fbf73);
 }
 
 .status-badge.stopped .status-dot {
-    background: #bbb;
+    background: var(--vscode-disabledForeground, #bbb);
 }
 
 /* ── Context Stats ───────────────────────────────────────── */
@@ -220,6 +224,11 @@ body {
     border-color: var(--vscode-focusBorder, #007acc);
     outline: 1px solid var(--vscode-focusBorder, #007acc);
     outline-offset: -1px;
+}
+
+.quick-input:focus-visible {
+    outline: 2px solid var(--vscode-focusBorder, #007acc);
+    outline-offset: 1px;
 }
 
 .quick-input::placeholder {

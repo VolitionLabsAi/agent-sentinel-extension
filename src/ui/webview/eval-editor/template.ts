@@ -67,9 +67,9 @@ export function buildEvalEditorHtml(options: EvalEditorTemplateOptions): string 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy"
-          content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
+          content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
     <title>Eval Editor</title>
-    <style>${EVAL_EDITOR_STYLES}</style>
+    <style nonce="${nonce}">${EVAL_EDITOR_STYLES}</style>
 </head>
 <body>
     <div class="toolbar" role="toolbar" aria-label="Editor toolbar">
@@ -191,6 +191,20 @@ export function buildEvalEditorHtml(options: EvalEditorTemplateOptions): string 
                     var target = e.target;
                     while (target && target !== errorPanel) {
                         if (target.dataset && target.dataset.line) {
+                            var lineNum = parseInt(target.dataset.line, 10);
+                            jumpToLine(lineNum);
+                            return;
+                        }
+                        target = target.parentElement;
+                    }
+                });
+                // Keyboard activation for error items (Enter/Space)
+                errorPanel.addEventListener('keydown', function (e) {
+                    if (e.key !== 'Enter' && e.key !== ' ') { return; }
+                    var target = e.target;
+                    while (target && target !== errorPanel) {
+                        if (target.dataset && target.dataset.line) {
+                            e.preventDefault();
                             var lineNum = parseInt(target.dataset.line, 10);
                             jumpToLine(lineNum);
                             return;

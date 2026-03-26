@@ -26,7 +26,7 @@ export function getSessionHealthHtml(nonce: string, cspSource: string): string {
             <div>Waiting for observations...</div>
         </div>
 
-        <div id="content" style="display:none;">
+        <div id="content" style="display:none;" aria-live="polite" aria-atomic="false">
             <!-- Metrics Summary -->
             <div class="metrics-grid" role="group" aria-label="Summary metrics">
                 <div class="metric-card" tabindex="0" aria-label="Evaluation count">

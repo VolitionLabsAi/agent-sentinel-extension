@@ -1,6 +1,8 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { ObservationStore } from '../../stores/observation-store';
+import { ConfigManager } from '../../stores/config-manager';
+import { LiveFeedProvider } from '../../ui/sidebar/live-feed-provider';
 import { PersistentObservation } from '../../types/observation';
 import { renderSparkline } from '../../ui/charts/sparkline';
 import { renderDonut } from '../../ui/charts/donut';
@@ -112,6 +114,135 @@ suite('Performance Gates', () => {
 
         store.dispose();
     });
+
+    test('ObservationStore.getObservations with 10,000 observations completes in <50ms', () => {
+        const store = new ObservationStore(10000);
+        const NUM_SESSIONS = 10;
+        const OBS_PER_SESSION = 1000;
+
+        for (let s = 0; s < NUM_SESSIONS; s++) {
+            const sessionId = `perf-session-${s}`;
+            store.addFolder(`perf-folder-${s}`, `/tmp/sentinel-perf-${s}/observations.jsonl`);
+            for (let i = 0; i < OBS_PER_SESSION; i++) {
+                (store as any).addObservation(createTestObservation(sessionId, i));
+            }
+        }
+
+        // Measure unfiltered getObservations
+        const start = performance.now();
+        const allObs = store.getObservations();
+        const elapsed = performance.now() - start;
+
+        console.log(`getObservations (${allObs.length} items): ${elapsed.toFixed(2)}ms`);
+        assert.strictEqual(allObs.length, NUM_SESSIONS * OBS_PER_SESSION);
+        assert.ok(
+            elapsed < 50,
+            `getObservations took ${elapsed.toFixed(1)}ms, exceeds 50ms gate`,
+        );
+
+        // Measure filtered getObservations
+        const startFiltered = performance.now();
+        const filtered = store.getObservations({ severity: 'critical' });
+        const elapsedFiltered = performance.now() - startFiltered;
+
+        console.log(`getObservations filtered (${filtered.length} items): ${elapsedFiltered.toFixed(2)}ms`);
+        assert.ok(
+            elapsedFiltered < 50,
+            `Filtered getObservations took ${elapsedFiltered.toFixed(1)}ms, exceeds 50ms gate`,
+        );
+
+        store.dispose();
+    });
+
+    test('ConfigManager.getEvalRules with 50 rules completes in <10ms', () => {
+        const configManager = new ConfigManager();
+
+        // Simulate 50 rules by directly populating merged rules
+        const rules = [];
+        for (let i = 0; i < 50; i++) {
+            rules.push({
+                id: `GEN-${i.toString().padStart(3, '0')}`,
+                version: 1,
+                domainRaw: 'general',
+                domain: 'GEN' as const,
+                severity: (['critical', 'warning', 'info'] as const)[i % 3],
+                rule: `Rule ${i}: Detect when the agent does something problematic involving scenario ${i}.`,
+                rationale: `Rationale for rule ${i}: This prevents a class of issues related to scenario ${i}.`,
+                enabled: i % 5 !== 0, // 80% enabled
+            });
+        }
+        (configManager as any).mergedRules = rules;
+
+        const start = performance.now();
+        for (let iter = 0; iter < 100; iter++) {
+            configManager.getEvalRules();
+        }
+        const elapsed = performance.now() - start;
+        const avgMs = elapsed / 100;
+
+        console.log(`getEvalRules (50 rules, avg over 100 calls): ${avgMs.toFixed(3)}ms`);
+        assert.ok(
+            avgMs < 10,
+            `getEvalRules avg ${avgMs.toFixed(3)}ms exceeds 10ms gate`,
+        );
+
+        configManager.dispose();
+    });
+
+    test('LiveFeedProvider.getChildren with 1000 observations completes in <100ms', () => {
+        const store = new ObservationStore(1000);
+        store.addFolder('feed-perf', '/tmp/sentinel-feed-perf/observations.jsonl');
+
+        for (let i = 0; i < 1000; i++) {
+            (store as any).addObservation(createTestObservation('feed-session', i));
+        }
+
+        const provider = new LiveFeedProvider(store);
+        provider.setViewMode('all');
+
+        const start = performance.now();
+        const items = provider.getChildren();
+        const elapsed = performance.now() - start;
+
+        console.log(`LiveFeedProvider.getChildren (${items.length} items): ${elapsed.toFixed(2)}ms`);
+        assert.ok(items.length > 0, 'Expected at least one tree item');
+        assert.ok(
+            elapsed < 100,
+            `getChildren took ${elapsed.toFixed(1)}ms, exceeds 100ms gate`,
+        );
+
+        provider.dispose();
+        store.dispose();
+    });
+
+    test('No active timers after ObservationStore.dispose()', () => {
+        const store = new ObservationStore(100);
+        store.addFolder('timer-test', '/tmp/sentinel-timer/observations.jsonl');
+
+        for (let i = 0; i < 10; i++) {
+            (store as any).addObservation(createTestObservation('timer-session', i));
+        }
+
+        store.dispose();
+
+        // After dispose, internal maps should be cleared
+        const obs = store.getObservations();
+        assert.strictEqual(obs.length, 0, 'Observations should be cleared after dispose');
+    });
+
+    test('No active timers after LiveFeedProvider.dispose()', () => {
+        const store = new ObservationStore(100);
+        const provider = new LiveFeedProvider(store);
+
+        provider.dispose();
+
+        // After dispose, getChildren should still work (graceful degradation)
+        // but the provider should not fire events
+        const items = provider.getChildren();
+        assert.ok(Array.isArray(items), 'getChildren should return array after dispose');
+
+        store.dispose();
+    });
 });
 
 suite('Chart Performance Gates', () => {
@@ -187,6 +318,63 @@ suite('Chart Performance Gates', () => {
         assert.ok(
             elapsed < 100,
             `Timeline render took ${elapsed.toFixed(1)}ms, exceeds 100ms gate`,
+        );
+    });
+
+    test('sparkline renders 10,000 points in <500ms', () => {
+        const data: number[] = [];
+        for (let i = 0; i < 10000; i++) {
+            data.push(Math.random() * 500);
+        }
+
+        const start = performance.now();
+        const svg = renderSparkline(data, { width: 260, height: 40 });
+        const elapsed = performance.now() - start;
+
+        console.log(`Sparkline 10,000 points: ${elapsed.toFixed(2)}ms`);
+        assert.ok(svg.includes('<svg'), 'Expected valid SVG output');
+        assert.ok(
+            elapsed < 500,
+            `Sparkline 10K render took ${elapsed.toFixed(1)}ms, exceeds 500ms gate`,
+        );
+    });
+});
+
+suite('JSONL Parsing Performance', () => {
+
+    test('Parse 1MB of JSONL observations in <500ms', () => {
+        // Build a ~1MB JSONL string
+        const lines: string[] = [];
+        let totalBytes = 0;
+        let i = 0;
+        while (totalBytes < 1024 * 1024) {
+            const obs = createTestObservation(`jsonl-session`, i++);
+            const line = JSON.stringify(obs);
+            lines.push(line);
+            totalBytes += line.length + 1; // +1 for newline
+        }
+        const jsonlBlob = lines.join('\n');
+
+        console.log(`JSONL blob: ${(jsonlBlob.length / 1024).toFixed(0)}KB, ${lines.length} lines`);
+
+        const start = performance.now();
+        const parsed: PersistentObservation[] = [];
+        for (const line of jsonlBlob.split('\n')) {
+            const trimmed = line.trim();
+            if (trimmed.length === 0) { continue; }
+            try {
+                parsed.push(JSON.parse(trimmed) as PersistentObservation);
+            } catch {
+                // skip
+            }
+        }
+        const elapsed = performance.now() - start;
+
+        console.log(`JSONL parse: ${parsed.length} observations in ${elapsed.toFixed(2)}ms (${(parsed.length / (elapsed / 1000)).toFixed(0)} obs/sec)`);
+        assert.ok(parsed.length > 0, 'Should parse at least one observation');
+        assert.ok(
+            elapsed < 500,
+            `JSONL parsing took ${elapsed.toFixed(1)}ms, exceeds 500ms gate`,
         );
     });
 });

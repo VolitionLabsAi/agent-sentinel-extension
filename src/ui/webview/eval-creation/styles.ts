@@ -15,6 +15,10 @@ export const EVAL_CREATION_STYLES = `
     :root {
         --transition-speed: 0ms;
     }
+    * {
+        animation: none !important;
+        transition: none !important;
+    }
 }
 
 * {

@@ -30,8 +30,8 @@ export function buildSentinelPanelHtml(nonce: string, cspSource: string): string
     <div id="panel-root" role="region" aria-label="Sentinel Conversation Panel">
 
         <!-- Status Badge -->
-        <div class="status-section">
-            <span class="status-badge stopped" id="status-badge">
+        <div class="status-section" aria-live="polite" aria-atomic="true">
+            <span class="status-badge stopped" id="status-badge" role="status">
                 <span class="status-dot" aria-hidden="true"></span>
                 <span id="status-text">No Sentinels</span>
             </span>
@@ -66,7 +66,7 @@ export function buildSentinelPanelHtml(nonce: string, cspSource: string): string
         <!-- Recent Observations -->
         <div id="observations-section" style="display: none;">
             <div class="section-header">Recent Observations</div>
-            <ul class="observation-list" id="observation-list" aria-label="Recent observations"></ul>
+            <ul class="observation-list" id="observation-list" aria-label="Recent observations" aria-live="polite"></ul>
         </div>
 
         <!-- Quick Input -->
@@ -78,7 +78,7 @@ export function buildSentinelPanelHtml(nonce: string, cspSource: string): string
                 <button class="send-btn" id="send-btn" disabled
                         aria-label="Send message">Send</button>
             </div>
-            <ul class="messages-list" id="messages-list" aria-label="Sent messages"></ul>
+            <ul class="messages-list" id="messages-list" aria-label="Sent messages" aria-live="polite"></ul>
         </div>
 
         <!-- Open Full Conversation -->

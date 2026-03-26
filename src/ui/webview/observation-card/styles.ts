@@ -17,6 +17,10 @@ export const OBSERVATION_CARD_STYLES = `
     :root {
         --transition-speed: 0ms;
     }
+    * {
+        animation: none !important;
+        transition: none !important;
+    }
 }
 
 * {

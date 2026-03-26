@@ -5,3 +5,4 @@ out/
 .vscode-test-web/
 .vscode-test-workspace/.volition/
 dist/
+benchmarks/benchmark-results.json

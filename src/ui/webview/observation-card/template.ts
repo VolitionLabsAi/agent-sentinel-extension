@@ -21,9 +21,9 @@ export function buildObservationCardHtml(cardHtml: string, nonce: string): strin
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy"
-          content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
+          content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
     <title>Sentinel Observation</title>
-    <style>${OBSERVATION_CARD_STYLES}</style>
+    <style nonce="${nonce}">${OBSERVATION_CARD_STYLES}</style>
 </head>
 <body>
     <main id="card-root" role="article" aria-label="Sentinel observation details">

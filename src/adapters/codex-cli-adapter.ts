@@ -100,7 +100,7 @@ export class CodexCLIAdapter implements HarnessAdapter {
     private checkBinaryAsync(): Promise<boolean> {
         return new Promise((resolve) => {
             const cmd = process.platform === 'win32' ? 'where' : 'which';
-            cp.exec(`${cmd} ${BINARY_NAME}`, { timeout: 3000 }, (error) => {
+            cp.execFile(cmd, [BINARY_NAME], { timeout: 3000 }, (error) => {
                 resolve(!error);
             });
         });
