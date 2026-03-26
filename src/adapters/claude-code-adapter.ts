@@ -73,7 +73,8 @@ export class ClaudeCodeAdapter implements HarnessAdapter {
 
     isHarnessTab(tab: vscode.Tab): boolean {
         const input = tab.input;
-        if (input && typeof input === 'object' && 'viewType' in input) {
+        if (input && typeof input === 'object' && 'viewType' in input
+            && typeof (input as Record<string, unknown>).viewType === 'string') {
             const viewType = (input as { viewType: string }).viewType;
             return viewType.includes(WEBVIEW_VIEW_TYPE);
         }

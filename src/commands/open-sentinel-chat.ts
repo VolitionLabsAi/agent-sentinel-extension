@@ -3,6 +3,7 @@ import { StateManager, SentinelSessionInfo } from '../stores/state-manager.js';
 import { ConfigManager } from '../stores/config-manager.js';
 import { HarnessAdapterRegistry } from '../adapters/adapter-registry.js';
 import { HarnessAdapter } from '../adapters/types.js';
+import { SETTING_ID_TO_HARNESS_NAME } from '../adapters/constants.js';
 
 /**
  * Opens a sentinel's sidechain session as an editor tab in VS Code.
@@ -24,8 +25,8 @@ export async function openSentinelChat(
     const adapter = await resolveAdapter(adapterRegistry, configManager);
     if (!adapter) {
         void vscode.window.showErrorMessage(
-            'No AI coding assistant harness is available. '
-            + 'Install Claude Code, GitHub Copilot, Gemini CLI, or Codex CLI.',
+            'No AI coding assistant harness that can open sessions is available. '
+            + 'Install Claude Code to open sentinel chat sessions directly.',
         );
         return;
     }
@@ -81,11 +82,14 @@ export async function openSentinelChat(
 /**
  * Resolve which harness adapter to use for opening a sentinel chat.
  *
+ * Only adapters with `capabilities.canOpenSessions === true` are considered,
+ * since this command needs to open a session by ID.
+ *
  * Priority:
  * 1. If config has `harnessOverrides` with exactly one harness name that matches
- *    an available adapter, use that adapter directly.
- * 2. If multiple adapters are available, show a QuickPick for user choice.
- * 3. If only one adapter is available, use it.
+ *    an available adapter with canOpenSessions, use that adapter directly.
+ * 2. If multiple session-capable adapters are available, show a QuickPick for user choice.
+ * 3. If only one session-capable adapter is available, use it.
  * 4. If none are available, return undefined.
  */
 async function resolveAdapter(
@@ -97,15 +101,17 @@ async function resolveAdapter(
         const preferredName = getConfiguredHarnessName(configManager);
         if (preferredName) {
             const adapter = registry.getByName(preferredName);
-            if (adapter?.isAvailable) {
+            if (adapter?.isAvailable && adapter.capabilities.canOpenSessions) {
                 return adapter;
             }
-            // Configured harness not available — fall through to auto-detection
+            // Configured harness not available or can't open sessions — fall through
         }
     }
 
     // Collect all available adapters that can open sessions
-    const available = registry.getAll().filter(a => a.isAvailable);
+    const available = registry.getAll().filter(
+        a => a.isAvailable && a.capabilities.canOpenSessions,
+    );
 
     if (available.length === 0) {
         return undefined;
@@ -118,9 +124,7 @@ async function resolveAdapter(
     // Multiple available — let the user choose
     const items = available.map(a => ({
         label: a.name,
-        description: a.capabilities.canOpenSessions
-            ? 'Can open sessions directly'
-            : 'Terminal-based session management',
+        description: 'Can open sessions directly',
         adapter: a,
     }));
 
@@ -131,17 +135,6 @@ async function resolveAdapter(
 
     return pick?.adapter;
 }
-
-/**
- * Maps setting IDs to adapter display names for reverse lookup.
- * Must stay in sync with SETTING_ID_MAP in harness-config.ts.
- */
-const SETTING_ID_TO_NAME: Record<string, string> = {
-    'claude-code': 'Claude Code',
-    'copilot': 'GitHub Copilot',
-    'codex': 'Codex CLI',
-    'gemini-cli': 'Gemini CLI',
-};
 
 /**
  * Read the configured harness preference from VS Code settings.
@@ -160,5 +153,5 @@ function getConfiguredHarnessName(_configManager: ConfigManager): string | undef
         return undefined;
     }
 
-    return SETTING_ID_TO_NAME[harnessSetting] ?? undefined;
+    return SETTING_ID_TO_HARNESS_NAME[harnessSetting] ?? undefined;
 }

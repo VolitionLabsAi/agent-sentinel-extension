@@ -16,13 +16,15 @@ Codex CLI introduced an **experimental hooks engine** in v0.114.0 (2026-03-11). 
 |---|---|---|---|
 | `SessionStart` | v0.114.0 | Experimental | No (stdout injected as context) |
 | `Stop` | v0.114.0 | Experimental | No |
-| `AfterAgent` | v0.99.0 | Stable | No |
-| `AfterToolUse` | v0.100.0 | Stable | No |
+| `AfterAgent` | v0.99.0* | Stable | No |
+| `AfterToolUse` | v0.100.0* | Stable | No |
 | `UserPromptSubmit` | v0.115.0 | Experimental | Yes (first blocking hook) |
+
+*\* Version attributions for AfterAgent (v0.99.0) and AfterToolUse (v0.100.0) could not be independently confirmed from official sources.*
 
 **No PreToolUse/BeforeTool equivalent exists.** All tool-related hooks fire *after* execution (`AfterToolUse`), not before. The `UserPromptSubmit` hook can block prompts before they reach the model, but there is no mechanism to intercept individual tool calls before execution.
 
-The experimental hooks engine requires a feature flag: `codex -c features.codex_hooks=true`.
+The experimental hooks engine may require a feature flag on older versions: `codex -c features.codex_hooks=true`. Note: PR #13276 removed feature gates, so this flag may no longer be needed on recent versions.
 
 **Configuration format** (`.codex/config.toml`):
 ```toml
@@ -87,13 +89,13 @@ The Codex VS Code extension (`openai.chatgpt` on Marketplace) provides:
 ### Feasibility Assessment: Partial Support (trending toward Full)
 
 **Justification:**
-- **Hooks:** No PreToolUse equivalent — cannot intercept tool calls before execution. Only `AfterToolUse` and `UserPromptSubmit` provide blocking/observation. The hooks system is experimental and expanding rapidly (3 new events in 2 weeks).
+- **Hooks:** No PreToolUse equivalent — cannot intercept tool calls before execution. Only `AfterToolUse` and `UserPromptSubmit` provide blocking/observation. The hooks system is experimental and expanding rapidly (3 new events in 2 weeks). Feature gates may have been removed in recent versions (PR #13276).
 - **Sessions:** Well-structured JSONL with session IDs and resume. Accessible on disk.
 - **Transcripts:** JSONL format is parseable but explicitly unstable/undocumented.
 - **VS Code API:** No extension surface.
 
 **Blocking unknowns:**
-- Will a `BeforeToolUse`/`PreToolUse` event be added? Community demand is high (issue #2109 has 521 upvotes). No official commitment.
+- Will a `BeforeToolUse`/`PreToolUse` event be added? Community demand is high (issue #2109, the general "Event Hooks" feature request, has 521 upvotes — PreToolUse is one of the most requested specific events within it). No official commitment.
 - Hooks JSON input schema — what data is passed to hook commands? Not documented.
 - JSONL transcript schema stability — will it break between versions?
 
@@ -233,7 +235,7 @@ Gemini CLI has the **most mature and well-documented hooks system** of the three
 **BeforeTool is fully supported** with multiple blocking mechanisms:
 - `decision: "deny"` in JSON output prevents execution
 - Exit code 2 = system-level block (stderr used as rejection reason)
-- `hookSpecificOutput` can rewrite tool arguments
+- `hookSpecificOutput` can rewrite tool arguments (note: this "Rewrite" capability is mentioned in the overview but the specific mechanism via hookSpecificOutput is not fully documented)
 - `continue: false` terminates the agent loop entirely
 
 **Data passed to hooks** (stdin JSON — well-documented):
@@ -369,7 +371,7 @@ The Gemini CLI Companion extension (`Google.gemini-cli-vscode-ide-companion`) pr
 ## Identified Gaps Requiring Upstream Feature Requests
 
 ### Codex CLI
-1. **PreToolUse/BeforeToolUse event** — Critical for sentinel. Issue #2109 exists with high community demand but no official commitment. Consider filing a focused feature request referencing the sentinel use case.
+1. **PreToolUse/BeforeToolUse event** — Critical for sentinel. Issue #2109 (general "Event Hooks" request, 521 upvotes) exists with high community demand — PreToolUse is one of the most requested specific events — but no official commitment. Consider filing a focused feature request referencing the sentinel use case.
 2. **Documented hook input schema** — What JSON is passed to hook commands? Currently undocumented.
 3. **Stable transcript schema** — The rollout JSONL is explicitly internal. A stable export format would enable reliable offline analysis.
 

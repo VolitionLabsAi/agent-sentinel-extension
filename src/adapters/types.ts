@@ -43,6 +43,16 @@ export interface HarnessAdapter {
     readonly capabilities: HarnessCapabilities;
 
     /**
+     * Asynchronously detect whether the adapter is available.
+     * Called during extension activation so that `isAvailable` can return
+     * a cached result synchronously. Adapters that rely on async checks
+     * (e.g., binary-on-PATH detection) should implement this method.
+     * Adapters that are purely synchronous (e.g., VS Code extension lookup)
+     * may omit it — the default is a no-op.
+     */
+    detectAvailability?(): Promise<void>;
+
+    /**
      * Open an existing session by its ID in the harness's editor UI.
      * Throws if the harness is not available or the operation fails.
      */

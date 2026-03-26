@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { ConfigManager } from '../../stores/config-manager.js';
 import { HarnessAdapterRegistry } from '../../adapters/adapter-registry.js';
+import { HARNESS_NAME_TO_SETTING_ID } from '../../adapters/constants.js';
 import type { HarnessConfig } from '../../types/eval-rule.js';
 
 /**
@@ -40,17 +41,6 @@ export interface HarnessInfo {
 }
 
 /**
- * Maps adapter display names to setting-friendly identifiers.
- * These match the enum values in the sentinel.harness.default setting.
- */
-const SETTING_ID_MAP: Record<string, string> = {
-    'Claude Code': 'claude-code',
-    'GitHub Copilot': 'copilot',
-    'Codex CLI': 'codex',
-    'Gemini CLI': 'gemini-cli',
-};
-
-/**
  * Reads the three-tier harness configuration and resolves
  * the effective config for a given harness.
  *
@@ -70,7 +60,7 @@ export class HarnessConfigResolver {
      * with provenance tracking for each field.
      */
     resolveHarnessConfig(harnessName: string): ResolvedConfig {
-        const settingId = SETTING_ID_MAP[harnessName] ?? harnessName.toLowerCase().replace(/\s+/g, '-');
+        const settingId = HARNESS_NAME_TO_SETTING_ID[harnessName] ?? harnessName.toLowerCase().replace(/\s+/g, '-');
 
         // Tier 3: Base config from sentinel.config.json defaults
         const baseConfig = this.configManager.getBaseDefaults();
@@ -111,7 +101,7 @@ export class HarnessConfigResolver {
     getAvailableHarnesses(): HarnessInfo[] {
         return this.adapterRegistry.getAll().map((adapter) => ({
             name: adapter.name,
-            settingId: SETTING_ID_MAP[adapter.name] ?? adapter.name.toLowerCase().replace(/\s+/g, '-'),
+            settingId: HARNESS_NAME_TO_SETTING_ID[adapter.name] ?? adapter.name.toLowerCase().replace(/\s+/g, '-'),
             isAvailable: adapter.isAvailable,
             isInstalled: adapter.isInstalled,
         }));

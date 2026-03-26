@@ -11,7 +11,7 @@ const BINARY_NAME = 'codex';
 /**
  * OpenAI Codex CLI harness adapter.
  *
- * Encapsulates ALL Codex CLI–specific knowledge:
+ * Encapsulates ALL Codex CLI-specific knowledge:
  * - CLI binary detection via `codex` on PATH
  * - VS Code extension detection via `openai.chatgpt`
  * - Session storage at `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`
@@ -24,7 +24,7 @@ const BINARY_NAME = 'codex';
  * The hooks system is experimental and requires a feature flag:
  * `codex -c features.codex_hooks=true`
  *
- * No other module should reference these Codex CLI–specific identifiers.
+ * No other module should reference these Codex CLI-specific identifiers.
  */
 export class CodexCLIAdapter implements HarnessAdapter {
     readonly name = 'Codex CLI';
@@ -40,14 +40,31 @@ export class CodexCLIAdapter implements HarnessAdapter {
 
     private binaryResolved: boolean | undefined;
 
+    /**
+     * Whether this adapter can perform its declared capabilities right now.
+     * Requires the CLI binary on PATH — the VS Code extension alone does not
+     * provide the hook capabilities this adapter declares.
+     */
     get isAvailable(): boolean {
-        return this.isBinaryOnPath() ||
+        // Return cached async result if available; false until detectAvailability resolves
+        return this.binaryResolved ?? false;
+    }
+
+    /**
+     * Whether the user has Codex installed in any form (CLI binary or VS Code extension).
+     */
+    get isInstalled(): boolean {
+        return (this.binaryResolved ?? false) ||
             vscode.extensions.getExtension(EXTENSION_ID) !== undefined;
     }
 
-    get isInstalled(): boolean {
-        return this.isBinaryOnPath() ||
-            vscode.extensions.getExtension(EXTENSION_ID) !== undefined;
+    /**
+     * Asynchronously detect whether the `codex` binary is on PATH.
+     * Called during extension activation; caches the result for synchronous
+     * `isAvailable` access afterward.
+     */
+    async detectAvailability(): Promise<void> {
+        this.binaryResolved = await this.checkBinaryAsync();
     }
 
     async openSession(_sessionId: string): Promise<void> {
@@ -78,22 +95,14 @@ export class CodexCLIAdapter implements HarnessAdapter {
     }
 
     /**
-     * Check whether the `codex` binary is available on PATH.
-     * Result is cached after first check.
+     * Async check for the `codex` binary on PATH using cp.exec.
      */
-    private isBinaryOnPath(): boolean {
-        if (this.binaryResolved !== undefined) {
-            return this.binaryResolved;
-        }
-
-        try {
+    private checkBinaryAsync(): Promise<boolean> {
+        return new Promise((resolve) => {
             const cmd = process.platform === 'win32' ? 'where' : 'which';
-            cp.execSync(`${cmd} ${BINARY_NAME}`, { stdio: 'ignore', timeout: 3000 });
-            this.binaryResolved = true;
-        } catch {
-            this.binaryResolved = false;
-        }
-
-        return this.binaryResolved;
+            cp.exec(`${cmd} ${BINARY_NAME}`, { timeout: 3000 }, (error) => {
+                resolve(!error);
+            });
+        });
     }
 }

@@ -11,7 +11,7 @@ const BINARY_NAME = 'gemini';
 /**
  * Gemini CLI harness adapter.
  *
- * Encapsulates ALL Gemini CLI–specific knowledge:
+ * Encapsulates ALL Gemini CLI-specific knowledge:
  * - CLI binary detection via `gemini` on PATH
  * - VS Code companion extension detection via `Google.gemini-cli-vscode-ide-companion`
  * - Session storage at `~/.gemini/tmp/<hash>/chats/`
@@ -21,7 +21,7 @@ const BINARY_NAME = 'gemini';
  * AfterModel, SessionStart, SessionEnd, and more — 11 events total, enabled by
  * default since v0.26.0+.
  *
- * No other module should reference these Gemini CLI–specific identifiers.
+ * No other module should reference these Gemini CLI-specific identifiers.
  */
 export class GeminiCLIAdapter implements HarnessAdapter {
     readonly name = 'Gemini CLI';
@@ -37,16 +37,32 @@ export class GeminiCLIAdapter implements HarnessAdapter {
 
     private binaryResolved: boolean | undefined;
 
+    /**
+     * Whether this adapter can perform its declared capabilities right now.
+     * Requires the CLI binary on PATH — the companion extension alone is a
+     * thin bridge for workspace context and does not provide hook capabilities.
+     */
     get isAvailable(): boolean {
-        // Check both: CLI binary on PATH and optionally the companion extension
-        return this.isBinaryOnPath();
+        // Return cached async result if available; false until detectAvailability resolves
+        return this.binaryResolved ?? false;
     }
 
+    /**
+     * Whether the user has Gemini CLI installed.
+     * Requires the CLI binary on PATH — the companion extension alone does not
+     * make Gemini CLI usable as a harness.
+     */
     get isInstalled(): boolean {
-        // For CLI tools, installed == binary exists on PATH
-        // The companion extension is optional (thin bridge for workspace context)
-        return this.isBinaryOnPath() ||
-            vscode.extensions.getExtension(EXTENSION_ID) !== undefined;
+        return this.binaryResolved ?? false;
+    }
+
+    /**
+     * Asynchronously detect whether the `gemini` binary is on PATH.
+     * Called during extension activation; caches the result for synchronous
+     * `isAvailable` access afterward.
+     */
+    async detectAvailability(): Promise<void> {
+        this.binaryResolved = await this.checkBinaryAsync();
     }
 
     async openSession(_sessionId: string): Promise<void> {
@@ -76,22 +92,14 @@ export class GeminiCLIAdapter implements HarnessAdapter {
     }
 
     /**
-     * Check whether the `gemini` binary is available on PATH.
-     * Result is cached after first check.
+     * Async check for the `gemini` binary on PATH using cp.exec.
      */
-    private isBinaryOnPath(): boolean {
-        if (this.binaryResolved !== undefined) {
-            return this.binaryResolved;
-        }
-
-        try {
+    private checkBinaryAsync(): Promise<boolean> {
+        return new Promise((resolve) => {
             const cmd = process.platform === 'win32' ? 'where' : 'which';
-            cp.execSync(`${cmd} ${BINARY_NAME}`, { stdio: 'ignore', timeout: 3000 });
-            this.binaryResolved = true;
-        } catch {
-            this.binaryResolved = false;
-        }
-
-        return this.binaryResolved;
+            cp.exec(`${cmd} ${BINARY_NAME}`, { timeout: 3000 }, (error) => {
+                resolve(!error);
+            });
+        });
     }
 }

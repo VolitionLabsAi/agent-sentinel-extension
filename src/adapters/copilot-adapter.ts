@@ -4,9 +4,6 @@ import { HarnessAdapter, HarnessCapabilities, SessionInfo } from './types.js';
 /** GitHub Copilot Chat extension ID in the VS Code marketplace */
 const EXTENSION_ID = 'github.copilot-chat';
 
-/** Copilot base extension ID (required dependency) */
-const COPILOT_BASE_EXTENSION_ID = 'github.copilot';
-
 /** ViewType for Copilot Chat panels — VS Code's built-in chat view */
 const CHAT_VIEW_TYPE = 'workbench.panel.chat';
 
@@ -14,7 +11,7 @@ const CHAT_VIEW_TYPE = 'workbench.panel.chat';
  * GitHub Copilot harness adapter.
  *
  * Encapsulates ALL Copilot-specific knowledge:
- * - Extension detection via `github.copilot-chat` (primary) and `github.copilot` (base)
+ * - Extension detection via `github.copilot-chat` (required for agent hooks)
  * - Tab detection via VS Code's built-in chat panel viewType
  * - Hook support via VS Code agent hooks (Preview)
  *
@@ -22,6 +19,9 @@ const CHAT_VIEW_TYPE = 'workbench.panel.chat';
  * PreToolUse with deny/ask/allow decisions, PostToolUse, and six other lifecycle
  * events. The hook system is in Preview and reads `.claude/settings.json` for
  * cross-harness compatibility.
+ *
+ * The base `github.copilot` extension alone does not provide agent hooks —
+ * `github.copilot-chat` is required for the capabilities this adapter declares.
  *
  * No other module should reference these Copilot-specific identifiers.
  */
@@ -37,14 +37,20 @@ export class CopilotAdapter implements HarnessAdapter {
         canInjectMessages: false,
     };
 
+    /**
+     * Whether this adapter can perform its declared capabilities right now.
+     * Requires `github.copilot-chat` — the base `github.copilot` extension
+     * alone does not provide agent hooks.
+     */
     get isAvailable(): boolean {
-        return vscode.extensions.getExtension(EXTENSION_ID) !== undefined ||
-            vscode.extensions.getExtension(COPILOT_BASE_EXTENSION_ID) !== undefined;
+        return vscode.extensions.getExtension(EXTENSION_ID) !== undefined;
     }
 
+    /**
+     * Whether the user has Copilot Chat installed.
+     */
     get isInstalled(): boolean {
-        return vscode.extensions.getExtension(EXTENSION_ID) !== undefined ||
-            vscode.extensions.getExtension(COPILOT_BASE_EXTENSION_ID) !== undefined;
+        return vscode.extensions.getExtension(EXTENSION_ID) !== undefined;
     }
 
     async openSession(_sessionId: string): Promise<void> {
@@ -64,7 +70,8 @@ export class CopilotAdapter implements HarnessAdapter {
 
     isHarnessTab(tab: vscode.Tab): boolean {
         const input = tab.input;
-        if (input && typeof input === 'object' && 'viewType' in input) {
+        if (input && typeof input === 'object' && 'viewType' in input
+            && typeof (input as Record<string, unknown>).viewType === 'string') {
             const viewType = (input as { viewType: string }).viewType;
             return viewType.includes(CHAT_VIEW_TYPE);
         }

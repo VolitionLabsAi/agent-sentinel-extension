@@ -248,10 +248,20 @@ export function activate(context: vscode.ExtensionContext) {
     // --- Harness Adapter Registry ---
 
     const adapterRegistry = new HarnessAdapterRegistry();
+    const geminiAdapter = new GeminiCLIAdapter();
+    const codexAdapter = new CodexCLIAdapter();
     adapterRegistry.register(new ClaudeCodeAdapter());
-    adapterRegistry.register(new GeminiCLIAdapter());
+    adapterRegistry.register(geminiAdapter);
     adapterRegistry.register(new CopilotAdapter());
-    adapterRegistry.register(new CodexCLIAdapter());
+    adapterRegistry.register(codexAdapter);
+
+    // Kick off async binary detection for CLI-based adapters (non-blocking)
+    Promise.all([
+        geminiAdapter.detectAvailability(),
+        codexAdapter.detectAvailability(),
+    ]).catch((err) => {
+        console.warn('[Agent Sentinel] CLI adapter availability detection failed:', err);
+    });
 
     // --- P4-6: Harness Configuration ---
 
