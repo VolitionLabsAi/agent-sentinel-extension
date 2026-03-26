@@ -1,0 +1,7 @@
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Shield outline - monochrome for activity bar -->
+  <path d="M12 2L4 6v5c0 5.25 3.4 10.15 8 11.25C16.6 21.15 20 16.25 20 11V6l-8-4z" stroke="currentColor" stroke-width="1.5" fill="none"/>
+  <!-- Eye/sentinel motif inside shield -->
+  <ellipse cx="12" cy="11" rx="4" ry="2.5" stroke="currentColor" stroke-width="1.2" fill="none"/>
+  <circle cx="12" cy="11" r="1.2" fill="currentColor"/>
+</svg>

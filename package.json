@@ -12,6 +12,7 @@
     "Other",
     "Testing"
   ],
+  "icon": "media/icon.png",
   "keywords": [
     "ai",
     "sentinel",
@@ -78,7 +79,7 @@
         {
           "id": "sentinel",
           "title": "Agent Sentinel",
-          "icon": "$(shield)"
+          "icon": "media/icons/sentinel-activity.svg"
         }
       ]
     },

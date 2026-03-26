@@ -1,0 +1,26 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="64" cy="64" r="60" fill="#1A1A2E"/>
+
+  <!-- Shield body -->
+  <path d="M64 16L24 36v28c0 26.5 17 51 40 56.5C87 115.5 104 91 104 64V36L64 16z" fill="#00BCD4" fill-opacity="0.15" stroke="#00BCD4" stroke-width="3"/>
+
+  <!-- Inner shield highlight -->
+  <path d="M64 28L34 44v22c0 20 13 38.5 30 43 17-4.5 30-23 30-43V44L64 28z" fill="#00BCD4" fill-opacity="0.08" stroke="#00BCD4" stroke-width="1.5" stroke-opacity="0.5"/>
+
+  <!-- Eye/sentinel symbol -->
+  <ellipse cx="64" cy="62" rx="20" ry="12" stroke="#00BCD4" stroke-width="2.5" fill="none"/>
+  <circle cx="64" cy="62" r="6" fill="#00BCD4"/>
+  <circle cx="64" cy="62" r="2.5" fill="#1A1A2E"/>
+
+  <!-- Scan lines radiating from eye -->
+  <path d="M40 62H28" stroke="#00BCD4" stroke-width="1.5" stroke-opacity="0.6" stroke-linecap="round"/>
+  <path d="M88 62h12" stroke="#00BCD4" stroke-width="1.5" stroke-opacity="0.6" stroke-linecap="round"/>
+  <path d="M48 50l-8-8" stroke="#00BCD4" stroke-width="1.5" stroke-opacity="0.4" stroke-linecap="round"/>
+  <path d="M80 50l8-8" stroke="#00BCD4" stroke-width="1.5" stroke-opacity="0.4" stroke-linecap="round"/>
+  <path d="M48 74l-8 8" stroke="#00BCD4" stroke-width="1.5" stroke-opacity="0.4" stroke-linecap="round"/>
+  <path d="M80 74l8 8" stroke="#00BCD4" stroke-width="1.5" stroke-opacity="0.4" stroke-linecap="round"/>
+
+  <!-- Pulse ring -->
+  <circle cx="64" cy="62" r="28" stroke="#00BCD4" stroke-width="1" stroke-opacity="0.3" stroke-dasharray="4 3"/>
+</svg>

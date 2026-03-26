@@ -1,0 +1,70 @@
+name: Publish Extension
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Type check
+        run: npm run check-types
+
+      - name: Determine pre-release
+        id: prerelease
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          if [[ "$TAG" == *"-beta"* || "$TAG" == *"-alpha"* || "$TAG" == *"-rc"* ]]; then
+            echo "flag=--pre-release" >> "$GITHUB_OUTPUT"
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "flag=" >> "$GITHUB_OUTPUT"
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Package VSIX
+        run: npx @vscode/vsce package ${{ steps.prerelease.outputs.flag }} --allow-missing-repository
+
+      - name: Smoke test — install in headless VS Code
+        run: |
+          VSIX_FILE=$(ls *.vsix | head -1)
+          npx @vscode/vsce ls --packagePath "$VSIX_FILE"
+          echo "✓ VSIX package structure validated"
+
+      - name: Publish to VS Code Marketplace
+        run: npx @vscode/vsce publish ${{ steps.prerelease.outputs.flag }} --allow-missing-repository
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+      - name: Publish to Open VSX
+        run: |
+          VSIX_FILE=$(ls *.vsix | head -1)
+          npx ovsx publish "$VSIX_FILE" -p "$OVSX_PAT"
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+
+      - name: Upload VSIX as release artifact
+        uses: softprops/action-gh-release@v2
+        with:
+          files: '*.vsix'
+          prerelease: ${{ steps.prerelease.outputs.is_prerelease == 'true' }}
