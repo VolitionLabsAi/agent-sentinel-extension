@@ -17,11 +17,15 @@ import { ObservationCardPanel } from './ui/webview/observation-card-panel.js';
 import { promoteLocalEval } from './evals/eval-promotion.js';
 import { HarnessAdapterRegistry } from './adapters/adapter-registry.js';
 import { ClaudeCodeAdapter } from './adapters/claude-code-adapter.js';
+import { GeminiCLIAdapter } from './adapters/gemini-cli-adapter.js';
+import { CopilotAdapter } from './adapters/copilot-adapter.js';
+import { CodexCLIAdapter } from './adapters/codex-cli-adapter.js';
 import { openSentinelChat } from './commands/open-sentinel-chat.js';
 import { EvalCreationPanel } from './ui/webview/eval-creation/panel.js';
 import { EvalEditorPanel } from './ui/webview/eval-editor/panel.js';
 import { SentinelConversationPanel } from './ui/webview/sentinel-panel/panel.js';
 import { steerSentinel } from './commands/steer-sentinel.js';
+import { HarnessConfigResolver } from './ui/settings/harness-config.js';
 import { generateEvalFromDescription } from './evals/eval-creator.js';
 
 /** Derive sentinel file paths for a workspace folder. */
@@ -245,12 +249,61 @@ export function activate(context: vscode.ExtensionContext) {
 
     const adapterRegistry = new HarnessAdapterRegistry();
     adapterRegistry.register(new ClaudeCodeAdapter());
+    adapterRegistry.register(new GeminiCLIAdapter());
+    adapterRegistry.register(new CopilotAdapter());
+    adapterRegistry.register(new CodexCLIAdapter());
+
+    // --- P4-6: Harness Configuration ---
+
+    const harnessConfigResolver = new HarnessConfigResolver(configManager, adapterRegistry);
+
+    // Read harness preference from settings
+    const harnessSetting = vscode.workspace
+        .getConfiguration('sentinel')
+        .get<string>('harness.default', 'auto');
+    console.log(`[Agent Sentinel] harness.default: ${harnessSetting}`);
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('sentinel.selectHarness', async () => {
+            const harnesses = harnessConfigResolver.getAvailableHarnesses();
+
+            const items: Array<vscode.QuickPickItem & { settingId: string }> = [
+                {
+                    label: '$(search) Auto-detect',
+                    description: 'Automatically detect the active harness',
+                    settingId: 'auto',
+                },
+                ...harnesses.map((h) => ({
+                    label: h.isAvailable ? `$(check) ${h.name}` : `$(circle-slash) ${h.name}`,
+                    description: h.isAvailable
+                        ? 'Available'
+                        : h.isInstalled
+                            ? 'Installed (not active)'
+                            : 'Not installed',
+                    settingId: h.settingId,
+                })),
+            ];
+
+            const picked = await vscode.window.showQuickPick(items, {
+                placeHolder: 'Select the default harness for sentinel monitoring',
+            });
+
+            if (picked) {
+                await vscode.workspace
+                    .getConfiguration('sentinel')
+                    .update('harness.default', picked.settingId, vscode.ConfigurationTarget.Global);
+                void vscode.window.showInformationMessage(
+                    `Sentinel harness set to: ${picked.settingId === 'auto' ? 'Auto-detect' : picked.label.replace(/\$\([^)]+\)\s*/, '')}`,
+                );
+            }
+        }),
+    );
 
     // --- P3-1: Open Sentinel Chat ---
 
     context.subscriptions.push(
         vscode.commands.registerCommand('sentinel.openSentinelChat', () => {
-            return openSentinelChat(stateManager, adapterRegistry);
+            return openSentinelChat(stateManager, adapterRegistry, configManager);
         }),
     );
 
@@ -399,7 +452,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     // --- Session Correlator ---
 
-    const sessionCorrelator = new SessionCorrelator(stateManager);
+    const sessionCorrelator = new SessionCorrelator(stateManager, adapterRegistry);
     context.subscriptions.push(sessionCorrelator);
 
     // --- P1-08: Multi-Session View Modes ---
@@ -532,13 +585,19 @@ export function activate(context: vscode.ExtensionContext) {
             return;
         }
 
-        // Feature-detect: check if claude-vscode.editor.open is available
-        const allCommands = await vscode.commands.getCommands(true);
-        if (allCommands.includes('claude-vscode.editor.open')) {
-            await vscode.commands.executeCommand('claude-vscode.editor.open', sessionId);
+        const adapter = adapterRegistry.getAvailable();
+        if (adapter && adapter.capabilities.canOpenSessions) {
+            try {
+                await adapter.openSession(sessionId);
+            } catch (err) {
+                const message = err instanceof Error ? err.message : String(err);
+                void vscode.window.showInformationMessage(
+                    `Failed to navigate to session: ${message}`,
+                );
+            }
         } else {
             void vscode.window.showInformationMessage(
-                `Claude Code extension not available — cannot navigate to session ${sessionId.slice(0, 8)}.`,
+                `No harness extension available — cannot navigate to session ${sessionId.slice(0, 8)}.`,
             );
         }
     });
@@ -636,6 +695,7 @@ export function activate(context: vscode.ExtensionContext) {
         sessionHealthProvider,
         evalRulesProvider,
         adapterRegistry,
+        harnessConfigResolver,
         sentinelConversationPanel,
     };
 }

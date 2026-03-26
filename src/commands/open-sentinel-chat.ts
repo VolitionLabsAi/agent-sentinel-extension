@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import { StateManager, SentinelSessionInfo } from '../stores/state-manager.js';
+import { ConfigManager } from '../stores/config-manager.js';
 import { HarnessAdapterRegistry } from '../adapters/adapter-registry.js';
+import { HarnessAdapter } from '../adapters/types.js';
 
 /**
  * Opens a sentinel's sidechain session as an editor tab in VS Code.
@@ -8,18 +10,22 @@ import { HarnessAdapterRegistry } from '../adapters/adapter-registry.js';
  * If multiple sentinels are active (e.g. GEN, SEC), presents a QuickPick
  * for the user to choose. If only one sentinel exists, opens it directly.
  *
- * Uses the harness adapter registry to open the session, allowing future
- * support for harnesses beyond Claude Code.
+ * Harness selection strategy:
+ * 1. If sentinel config specifies `harnessOverrides` with a single harness, use it.
+ * 2. If multiple harnesses are available, present a QuickPick to the user.
+ * 3. Falls back to the first available adapter in the registry.
  */
 export async function openSentinelChat(
     stateManager: StateManager,
     adapterRegistry: HarnessAdapterRegistry,
+    configManager?: ConfigManager,
 ): Promise<void> {
-    // Check that a harness adapter is available
-    const adapter = adapterRegistry.getAvailable();
+    // Resolve the harness adapter — config-aware with fallback
+    const adapter = await resolveAdapter(adapterRegistry, configManager);
     if (!adapter) {
         void vscode.window.showErrorMessage(
-            'Claude Code extension is required to open sentinel chat.',
+            'No AI coding assistant harness is available. '
+            + 'Install Claude Code, GitHub Copilot, Gemini CLI, or Codex CLI.',
         );
         return;
     }
@@ -70,4 +76,89 @@ export async function openSentinelChat(
             `Failed to open sentinel chat: ${message}`,
         );
     }
+}
+
+/**
+ * Resolve which harness adapter to use for opening a sentinel chat.
+ *
+ * Priority:
+ * 1. If config has `harnessOverrides` with exactly one harness name that matches
+ *    an available adapter, use that adapter directly.
+ * 2. If multiple adapters are available, show a QuickPick for user choice.
+ * 3. If only one adapter is available, use it.
+ * 4. If none are available, return undefined.
+ */
+async function resolveAdapter(
+    registry: HarnessAdapterRegistry,
+    configManager?: ConfigManager,
+): Promise<HarnessAdapter | undefined> {
+    // Check if config specifies a preferred harness
+    if (configManager) {
+        const preferredName = getConfiguredHarnessName(configManager);
+        if (preferredName) {
+            const adapter = registry.getByName(preferredName);
+            if (adapter?.isAvailable) {
+                return adapter;
+            }
+            // Configured harness not available — fall through to auto-detection
+        }
+    }
+
+    // Collect all available adapters that can open sessions
+    const available = registry.getAll().filter(a => a.isAvailable);
+
+    if (available.length === 0) {
+        return undefined;
+    }
+
+    if (available.length === 1) {
+        return available[0];
+    }
+
+    // Multiple available — let the user choose
+    const items = available.map(a => ({
+        label: a.name,
+        description: a.capabilities.canOpenSessions
+            ? 'Can open sessions directly'
+            : 'Terminal-based session management',
+        adapter: a,
+    }));
+
+    const pick = await vscode.window.showQuickPick(items, {
+        placeHolder: 'Multiple AI harnesses detected — select one',
+        title: 'Select Harness',
+    });
+
+    return pick?.adapter;
+}
+
+/**
+ * Maps setting IDs to adapter display names for reverse lookup.
+ * Must stay in sync with SETTING_ID_MAP in harness-config.ts.
+ */
+const SETTING_ID_TO_NAME: Record<string, string> = {
+    'claude-code': 'Claude Code',
+    'copilot': 'GitHub Copilot',
+    'codex': 'Codex CLI',
+    'gemini-cli': 'Gemini CLI',
+};
+
+/**
+ * Read the configured harness preference from VS Code settings.
+ * Returns the adapter display name if a specific harness is configured,
+ * undefined if set to 'auto' or not set.
+ *
+ * Uses the `sentinel.harness.default` setting (set via sentinel.selectHarness command).
+ * The _configManager parameter is accepted for future use when sentinel.config.json
+ * gains a harness preference field.
+ */
+function getConfiguredHarnessName(_configManager: ConfigManager): string | undefined {
+    const sentinelConfig = vscode.workspace.getConfiguration('sentinel');
+    const harnessSetting = sentinelConfig.get<string>('harness.default', 'auto');
+
+    if (!harnessSetting || harnessSetting === 'auto') {
+        return undefined;
+    }
+
+    return SETTING_ID_TO_NAME[harnessSetting] ?? undefined;
 }

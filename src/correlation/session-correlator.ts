@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import { StateManager } from '../stores/state-manager.js';
+import { HarnessAdapterRegistry } from '../adapters/adapter-registry.js';
 
 export type CorrelationConfidence = 'high' | 'medium' | 'low';
 
@@ -11,10 +12,10 @@ export interface CorrelationResult {
 
 /**
  * SessionCorrelator uses three signals to determine which agent session
- * corresponds to the currently active Claude Code tab:
+ * corresponds to the currently active harness tab:
  *
  *   Signal 1 — Tab cache (instant, highest confidence):
- *     When the extension opens a session via claude-vscode.editor.open,
+ *     When the extension opens a session via the harness adapter,
  *     the caller caches {tabLabel -> sessionId}.
  *
  *   Signal 2 — Transcript activity (high confidence):
@@ -27,8 +28,12 @@ export interface CorrelationResult {
  *
  * Sidebar limitation:
  *   VS Code's sidebar/webview panels do not always appear in tabGroups,
- *   so sidebar-based Claude Code UIs may not be detectable via tab
+ *   so sidebar-based harness UIs may not be detectable via tab
  *   enumeration. The correlator gracefully returns null in that case.
+ *
+ * Harness abstraction:
+ *   Tab detection is delegated to the HarnessAdapterRegistry, so the
+ *   correlator works automatically with any registered harness adapter.
  */
 export class SessionCorrelator implements vscode.Disposable {
     private readonly disposables: vscode.Disposable[] = [];
@@ -43,7 +48,10 @@ export class SessionCorrelator implements vscode.Disposable {
     /** Fires when the correlated active session changes (or becomes null). */
     readonly onActiveSessionChanged: vscode.Event<CorrelationResult | null> = this._onActiveSessionChanged.event;
 
-    constructor(private readonly stateManager: StateManager) {
+    constructor(
+        private readonly stateManager: StateManager,
+        private readonly adapterRegistry: HarnessAdapterRegistry,
+    ) {
         this.disposables.push(this._onActiveSessionChanged);
 
         // Listen to tab changes
@@ -57,7 +65,7 @@ export class SessionCorrelator implements vscode.Disposable {
 
     /**
      * Cache a known mapping from tab label to session ID.
-     * Called when the extension opens a session via claude-vscode.editor.open.
+     * Called when the extension opens a session via the harness adapter.
      */
     cacheSessionTab(sessionId: string, tabLabel: string): void {
         this.tabCache.set(tabLabel, sessionId);
@@ -66,36 +74,28 @@ export class SessionCorrelator implements vscode.Disposable {
     // ── Tab detection ───────────────────────────────────────────────
 
     /**
-     * Find the currently active Claude Code tab, if any.
-     * Looks for tabs whose input is a TabInputWebview with viewType
-     * containing 'claudeVSCodePanel'.
+     * Find the currently active harness tab, if any.
+     * Delegates to the adapter registry to check whether a tab belongs
+     * to any registered harness, rather than hardcoding viewType strings.
      *
      * Sidebar limitation: VS Code sidebar webviews do not appear in
-     * tabGroups, so sidebar-hosted Claude Code panels will not be found.
+     * tabGroups, so sidebar-hosted panels will not be found.
      */
-    private getActiveClaudeTab(): vscode.Tab | undefined {
+    private getActiveHarnessTab(): vscode.Tab | undefined {
         for (const group of vscode.window.tabGroups.all) {
             if (group.isActive && group.activeTab) {
                 const tab = group.activeTab;
-                const input = tab.input;
-                if (input && typeof input === 'object' && 'viewType' in input) {
-                    const viewType = (input as { viewType: string }).viewType;
-                    if (viewType.includes('claudeVSCodePanel')) {
-                        return tab;
-                    }
+                if (this.adapterRegistry.isHarnessTab(tab)) {
+                    return tab;
                 }
             }
         }
-        // Also check non-active groups for any Claude tab that might be active within its group
+        // Also check non-active groups for any harness tab that might be active within its group
         for (const group of vscode.window.tabGroups.all) {
             if (group.activeTab) {
                 const tab = group.activeTab;
-                const input = tab.input;
-                if (input && typeof input === 'object' && 'viewType' in input) {
-                    const viewType = (input as { viewType: string }).viewType;
-                    if (viewType.includes('claudeVSCodePanel')) {
-                        return tab;
-                    }
+                if (this.adapterRegistry.isHarnessTab(tab)) {
+                    return tab;
                 }
             }
         }
@@ -105,11 +105,11 @@ export class SessionCorrelator implements vscode.Disposable {
     // ── Correlation engine ──────────────────────────────────────────
 
     /**
-     * Correlate the active Claude Code tab to a session ID using
+     * Correlate the active harness tab to a session ID using
      * three signals in priority order.
      */
     async correlateActiveSession(): Promise<CorrelationResult | null> {
-        const tab = this.getActiveClaudeTab();
+        const tab = this.getActiveHarnessTab();
         if (!tab) {
             return null;
         }

@@ -5,6 +5,7 @@ import {
     EvalRule,
     EvalDomain,
     EvalSeverity,
+    HarnessConfig,
     SentinelConfigFile,
 } from '../types/eval-rule.js';
 
@@ -347,6 +348,82 @@ export class ConfigManager implements vscode.Disposable {
         this.mergedRules = [];
         for (const folder of this.folders.values()) {
             this.mergedRules.push(...folder.rules);
+        }
+    }
+
+    /**
+     * Returns the base defaults from the first workspace folder's config.
+     * Used as tier-3 (lowest priority) in harness config resolution.
+     */
+    getBaseDefaults(): { model: string; evalSet: string } {
+        for (const folder of this.folders.values()) {
+            if (folder.config?.defaults) {
+                return {
+                    model: folder.config.defaults.model ?? '',
+                    evalSet: '',
+                };
+            }
+        }
+        return { model: '', evalSet: '' };
+    }
+
+    /**
+     * Read per-harness overrides from sentinel.config.json (tier-2).
+     * Returns undefined if no overrides exist for this harness.
+     */
+    getHarnessConfig(harnessName: string): HarnessConfig | undefined {
+        for (const folder of this.folders.values()) {
+            if (folder.config?.harnessOverrides) {
+                return folder.config.harnessOverrides[harnessName];
+            }
+        }
+        return undefined;
+    }
+
+    /**
+     * Write per-harness overrides to sentinel.config.json.
+     * Merges with any existing overrides for the harness.
+     */
+    async setHarnessConfig(harnessName: string, config: Partial<HarnessConfig>): Promise<void> {
+        // Write to the first folder that has a config
+        for (const folder of this.folders.values()) {
+            if (!folder.config) { continue; }
+
+            if (!folder.config.harnessOverrides) {
+                folder.config.harnessOverrides = {};
+            }
+
+            const existing = folder.config.harnessOverrides[harnessName] ?? {};
+            folder.config.harnessOverrides[harnessName] = { ...existing, ...config };
+
+            // Clean up undefined/empty values
+            const merged = folder.config.harnessOverrides[harnessName];
+            if (merged) {
+                for (const [key, value] of Object.entries(merged)) {
+                    if (value === undefined || value === '') {
+                        delete (merged as Record<string, unknown>)[key];
+                    }
+                }
+                if (Object.keys(merged).length === 0) {
+                    delete folder.config.harnessOverrides[harnessName];
+                }
+            }
+
+            // Clean up empty harnessOverrides
+            if (Object.keys(folder.config.harnessOverrides).length === 0) {
+                delete folder.config.harnessOverrides;
+            }
+
+            try {
+                const json = JSON.stringify(folder.config, null, 2) + '\n';
+                await fs.writeFile(folder.configPath, json, 'utf-8');
+            } catch (err) {
+                console.error(`[ConfigManager] Failed to write harness config: ${err}`);
+                vscode.window.showErrorMessage(`Failed to update harness config: ${err}`);
+            }
+
+            this._onConfigChanged.fire();
+            return;
         }
     }
 

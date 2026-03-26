@@ -66,6 +66,17 @@ export interface LocalEval {
 }
 
 /**
+ * Per-harness configuration overrides.
+ * These override the base sentinel config for a specific harness.
+ */
+export interface HarnessConfig {
+    /** Override the LLM model used for sentinel evaluation */
+    model?: string;
+    /** Override the eval set file path */
+    evalSet?: string;
+}
+
+/**
  * Top-level shape of sentinel.config.json.
  */
 export interface SentinelConfigFile {
@@ -83,4 +94,6 @@ export interface SentinelConfigFile {
     sentinels: SentinelConfig[];
     /** Per-rule overrides: eval ID -> { enabled: boolean } */
     ruleOverrides?: Record<string, { enabled: boolean }>;
+    /** Per-harness sentinel configuration overrides */
+    harnessOverrides?: Record<string, HarnessConfig>;
 }

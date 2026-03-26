@@ -111,6 +111,11 @@
         "command": "sentinel.steerSentinel",
         "title": "Sentinel: Tell Sentinel...",
         "icon": "$(megaphone)"
+      },
+      {
+        "command": "sentinel.selectHarness",
+        "title": "Sentinel: Select Harness",
+        "icon": "$(server-process)"
       }
     ],
     "menus": {
@@ -288,6 +293,34 @@
           "type": "number",
           "default": 300,
           "description": "Background health check interval in seconds"
+        },
+        "sentinel.harness.default": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "claude-code",
+            "copilot",
+            "codex",
+            "gemini-cli"
+          ],
+          "default": "auto",
+          "description": "Default AI harness for sentinel monitoring. 'auto' detects the active harness."
+        },
+        "sentinel.harness.overrides": {
+          "type": "object",
+          "default": {},
+          "description": "Per-harness sentinel configuration overrides",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "model": {
+                "type": "string"
+              },
+              "evalSet": {
+                "type": "string"
+              }
+            }
+          }
         }
       }
     }

@@ -1,3 +1,4 @@
+import type * as vscode from 'vscode';
 import { HarnessAdapter } from './types.js';
 
 /**
@@ -5,6 +6,9 @@ import { HarnessAdapter } from './types.js';
  *
  * Allows registration of multiple adapters and selection by availability or name.
  * The first available adapter is the default when no specific harness is requested.
+ *
+ * Also provides aggregate tab-detection across all registered adapters, so
+ * consumers like SessionCorrelator don't need to iterate adapters themselves.
  */
 export class HarnessAdapterRegistry {
     private readonly adapters: Map<string, HarnessAdapter> = new Map();
@@ -40,5 +44,30 @@ export class HarnessAdapterRegistry {
      */
     getAll(): HarnessAdapter[] {
         return [...this.adapters.values()];
+    }
+
+    /**
+     * Check whether a VS Code tab belongs to ANY registered harness.
+     * Returns true if any adapter claims the tab.
+     */
+    isHarnessTab(tab: vscode.Tab): boolean {
+        for (const adapter of this.adapters.values()) {
+            if (adapter.capabilities.canDetectTabs && adapter.isHarnessTab(tab)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Find the adapter that owns a given tab, or undefined if no adapter claims it.
+     */
+    getAdapterForTab(tab: vscode.Tab): HarnessAdapter | undefined {
+        for (const adapter of this.adapters.values()) {
+            if (adapter.capabilities.canDetectTabs && adapter.isHarnessTab(tab)) {
+                return adapter;
+            }
+        }
+        return undefined;
     }
 }
