@@ -92,6 +92,25 @@
         "command": "sentinel.promoteEval",
         "title": "Sentinel: Promote Dynamic Eval",
         "icon": "$(arrow-up)"
+      },
+      {
+        "command": "sentinel.openSentinelChat",
+        "title": "Sentinel: Open Chat",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "sentinel.createEval",
+        "title": "Sentinel: Create New Eval",
+        "icon": "$(add)"
+      },
+      {
+        "command": "sentinel.editEval",
+        "title": "Sentinel: Edit Eval"
+      },
+      {
+        "command": "sentinel.steerSentinel",
+        "title": "Sentinel: Tell Sentinel...",
+        "icon": "$(megaphone)"
       }
     ],
     "menus": {
@@ -99,6 +118,21 @@
         {
           "command": "sentinel.setViewMode",
           "when": "view == sentinel.liveFeed",
+          "group": "navigation"
+        },
+        {
+          "command": "sentinel.openSentinelChat",
+          "when": "view == sentinel.liveFeed || view == sentinel.conversationPanel",
+          "group": "navigation"
+        },
+        {
+          "command": "sentinel.createEval",
+          "when": "view == sentinel.evalRules",
+          "group": "navigation"
+        },
+        {
+          "command": "sentinel.steerSentinel",
+          "when": "view == sentinel.conversationPanel",
           "group": "navigation"
         }
       ],
@@ -112,6 +146,16 @@
           "command": "sentinel.promoteEval",
           "when": "viewItem == evalRule.dynamic",
           "group": "inline@2"
+        },
+        {
+          "command": "sentinel.editEval",
+          "when": "viewItem == evalRule.enabled || viewItem == evalRule.disabled",
+          "group": "1_edit@1"
+        },
+        {
+          "command": "sentinel.editEval",
+          "when": "viewItem == evalRule.dynamic",
+          "group": "1_edit@1"
         }
       ]
     },
@@ -138,6 +182,11 @@
         {
           "id": "sentinel.evalRules",
           "name": "Eval Rules"
+        },
+        {
+          "id": "sentinel.conversationPanel",
+          "name": "Sentinel Chat",
+          "type": "webview"
         }
       ]
     },

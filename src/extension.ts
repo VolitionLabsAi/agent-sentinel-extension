@@ -15,6 +15,14 @@ import { EvalRulesProvider } from './ui/sidebar/eval-rules-provider.js';
 import { EvalRuleTreeItem, DynamicEvalRuleTreeItem } from './ui/sidebar/eval-rule-tree-item.js';
 import { ObservationCardPanel } from './ui/webview/observation-card-panel.js';
 import { promoteLocalEval } from './evals/eval-promotion.js';
+import { HarnessAdapterRegistry } from './adapters/adapter-registry.js';
+import { ClaudeCodeAdapter } from './adapters/claude-code-adapter.js';
+import { openSentinelChat } from './commands/open-sentinel-chat.js';
+import { EvalCreationPanel } from './ui/webview/eval-creation/panel.js';
+import { EvalEditorPanel } from './ui/webview/eval-editor/panel.js';
+import { SentinelConversationPanel } from './ui/webview/sentinel-panel/panel.js';
+import { steerSentinel } from './commands/steer-sentinel.js';
+import { generateEvalFromDescription } from './evals/eval-creator.js';
 
 /** Derive sentinel file paths for a workspace folder. */
 function sentinelPaths(folder: vscode.WorkspaceFolder) {
@@ -230,6 +238,152 @@ export function activate(context: vscode.ExtensionContext) {
             } catch (err) {
                 void vscode.window.showErrorMessage(`Failed to promote eval: ${err}`);
             }
+        }),
+    );
+
+    // --- Harness Adapter Registry ---
+
+    const adapterRegistry = new HarnessAdapterRegistry();
+    adapterRegistry.register(new ClaudeCodeAdapter());
+
+    // --- P3-1: Open Sentinel Chat ---
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('sentinel.openSentinelChat', () => {
+            return openSentinelChat(stateManager, adapterRegistry);
+        }),
+    );
+
+    // --- P3-2: Rapid Eval Creation ---
+
+    const evalCreationPanel = new EvalCreationPanel(context.extensionUri);
+    context.subscriptions.push(
+        vscode.commands.registerCommand('sentinel.createEval', () => {
+            const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+            if (!workspaceRoot) {
+                void vscode.window.showErrorMessage('No workspace folder open — cannot create eval.');
+                return;
+            }
+            evalCreationPanel.show(workspaceRoot);
+        }),
+    );
+
+    // --- P3-3: Eval Editor ---
+
+    const evalEditorPanel = new EvalEditorPanel(context.extensionUri);
+    context.subscriptions.push(evalEditorPanel);
+
+    // Wire save → refresh config and eval rules
+    context.subscriptions.push(
+        evalEditorPanel.onDidSave(async () => {
+            await configManager.load();
+            evalRulesProvider.refresh();
+        }),
+    );
+
+    // Wire duplicate → create copy with new ID and reopen
+    context.subscriptions.push(
+        evalEditorPanel.onDidRequestDuplicate(({ content }) => {
+            // Generate a new ID by replacing the existing ID in the YAML
+            const idMatch = content.match(/^\s+-\s+id:\s*"?([^"\n]+)"?\s*$/m);
+            const oldId = idMatch?.[1]?.trim();
+            const domainPrefix = oldId?.split('-')[0] ?? 'GEN';
+
+            const result = generateEvalFromDescription({
+                description: 'Duplicated eval — edit the rule text',
+                domain: domainPrefix,
+                severity: 'warning',
+            });
+
+            // Replace the old ID with the new one in the content
+            let newContent = content;
+            if (oldId) {
+                newContent = content.replace(oldId, result.id);
+            }
+
+            evalEditorPanel.show(newContent, result.filePath);
+        }),
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('sentinel.editEval', async (arg?: EvalRuleTreeItem | DynamicEvalRuleTreeItem | string) => {
+            let filePath: string | undefined;
+
+            if (typeof arg === 'string') {
+                filePath = arg;
+            } else if (arg instanceof DynamicEvalRuleTreeItem && arg.localEval) {
+                // Dynamic evals are read-only (rendered from state, not files)
+                const yaml = [
+                    'evals:',
+                    `  - id: "${arg.localEval.id}"`,
+                    '    version: 1',
+                    '    domain: "local"',
+                    `    severity: "${arg.localEval.severity}"`,
+                    '    rule: |',
+                    ...arg.localEval.rule.split('\n').map(l => `      ${l}`),
+                    '    rationale: |',
+                    ...arg.localEval.rationale.split('\n').map(l => `      ${l}`),
+                    '',
+                ].join('\n');
+                evalEditorPanel.show(yaml, '', { readOnly: true });
+                return;
+            } else if (arg instanceof EvalRuleTreeItem && arg.rule) {
+                // Search eval YAML files in the workspace for the rule ID
+                const evalFiles = await vscode.workspace.findFiles(
+                    '.volition/sentinel/**/*.yaml',
+                    undefined,
+                    50,
+                );
+                for (const uri of evalFiles) {
+                    try {
+                        const content = await vscode.workspace.fs.readFile(uri);
+                        const text = Buffer.from(content).toString('utf-8');
+                        if (text.includes(arg.rule.id)) {
+                            filePath = uri.fsPath;
+                            break;
+                        }
+                    } catch {
+                        // skip files we can't read
+                    }
+                }
+            }
+
+            if (!filePath) {
+                void vscode.window.showErrorMessage('Could not locate eval file to edit.');
+                return;
+            }
+
+            try {
+                const content = await vscode.workspace.fs.readFile(vscode.Uri.file(filePath));
+                const text = Buffer.from(content).toString('utf-8');
+                evalEditorPanel.show(text, filePath);
+            } catch (err) {
+                void vscode.window.showErrorMessage(`Failed to open eval file: ${err}`);
+            }
+        }),
+    );
+
+    // --- P3-4: Sentinel Conversation Panel ---
+
+    const sentinelConversationPanel = new SentinelConversationPanel(
+        observationStore,
+        stateManager,
+        configManager,
+        adapterRegistry,
+    );
+    context.subscriptions.push(sentinelConversationPanel);
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider(
+            SentinelConversationPanel.viewType,
+            sentinelConversationPanel,
+        ),
+    );
+
+    // --- P3-5: Mid-Session Sentinel Steering ---
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('sentinel.steerSentinel', () => {
+            return steerSentinel(stateManager, adapterRegistry);
         }),
     );
 
@@ -481,6 +635,8 @@ export function activate(context: vscode.ExtensionContext) {
         configManager,
         sessionHealthProvider,
         evalRulesProvider,
+        adapterRegistry,
+        sentinelConversationPanel,
     };
 }
 

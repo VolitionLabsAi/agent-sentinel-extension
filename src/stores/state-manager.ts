@@ -13,10 +13,25 @@ export interface SessionState {
 }
 
 /**
+ * A sentinel session descriptor with enough info to identify and open it.
+ */
+export interface SentinelSessionInfo {
+    /** The sentinel domain name, e.g. "GEN", "SEC" */
+    name: string;
+    /** The sentinel's own Claude Code session ID */
+    sentinelSessionId: string;
+    /** The parent (monitored) session ID */
+    parentSessionId: string;
+    /** When the sentinel started */
+    startedAt?: string;
+}
+
+/**
  * Shape of a sentinel entry within a session in sentinel-state.json.
  */
 interface SentinelEntry {
     sentinel_session_id?: string;
+    started_at?: string;
     extractions?: {
         local_evals?: RawLocalEval[];
     };
@@ -61,6 +76,9 @@ export class StateManager implements vscode.Disposable {
 
     /** All known local evals, keyed by "id|created_at" for dedup. */
     private readonly localEvals: Map<string, LocalEval> = new Map();
+
+    /** All known sentinel sessions, keyed by sentinel_session_id for dedup. */
+    private readonly sentinelSessions: Map<string, SentinelSessionInfo> = new Map();
 
     private readonly _onSessionsChanged = new vscode.EventEmitter<string[]>();
     /** Fires when sessions are added or removed. Payload is the current session ID list. */
@@ -196,12 +214,29 @@ export class StateManager implements vscode.Disposable {
         return [...this.localEvals.values()];
     }
 
+    /**
+     * Returns all active sentinel sessions across all tracked folders.
+     * Each entry includes the sentinel domain name (GEN, SEC, etc.),
+     * its own session ID, and the parent session it monitors.
+     */
+    getSentinelSessions(): SentinelSessionInfo[] {
+        return [...this.sentinelSessions.values()];
+    }
+
     private async readStateFile(folderKey: string, filePath: string): Promise<void> {
         const folderMap = this.folderSessions.get(folderKey);
         if (!folderMap) {
             return;
         }
         folderMap.clear();
+
+        // Clear sentinel sessions for this folder before re-reading.
+        // Remove entries whose parentSessionId belongs to this folder.
+        for (const [key, info] of this.sentinelSessions) {
+            if (folderMap.has(info.parentSessionId)) {
+                this.sentinelSessions.delete(key);
+            }
+        }
 
         try {
             const raw = await fs.readFile(filePath, 'utf-8');
@@ -223,8 +258,9 @@ export class StateManager implements vscode.Disposable {
                         started_at: sessionData.started_at,
                     });
 
-                    // Extract local evals from each sentinel within this session
+                    // Extract sentinel session info and local evals
                     if (sessionData.sentinels) {
+                        this.extractSentinelSessions(sessionId, sessionData.sentinels);
                         this.extractLocalEvals(sessionId, sessionData.sentinels);
                     }
                 }
@@ -232,6 +268,25 @@ export class StateManager implements vscode.Disposable {
         } catch {
             // File may not exist yet or be malformed — not fatal
             console.warn(`[StateManager] Could not read state file: ${filePath}`);
+        }
+    }
+
+    /**
+     * Extract sentinel session descriptors from sentinel entries within a session.
+     */
+    private extractSentinelSessions(
+        parentSessionId: string,
+        sentinels: Record<string, SentinelEntry>,
+    ): void {
+        for (const [sentinelName, sentinel] of Object.entries(sentinels)) {
+            if (!sentinel.sentinel_session_id) { continue; }
+
+            this.sentinelSessions.set(sentinel.sentinel_session_id, {
+                name: sentinelName,
+                sentinelSessionId: sentinel.sentinel_session_id,
+                parentSessionId,
+                startedAt: sentinel.started_at,
+            });
         }
     }
 
@@ -297,5 +352,6 @@ export class StateManager implements vscode.Disposable {
         this.folderSessions.clear();
         this.folderPaths.clear();
         this.localEvals.clear();
+        this.sentinelSessions.clear();
     }
 }
