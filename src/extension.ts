@@ -4,6 +4,7 @@ import { StatusBarManager } from './ui/status-bar.js';
 import { ObservationStore } from './stores/observation-store.js';
 import { LiveFeedProvider } from './ui/sidebar/live-feed-provider.js';
 import { WorkspaceManager } from './watchers/workspace-manager.js';
+import { WalkthroughManager } from './ui/walkthrough.js';
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Agent Sentinel activated');
@@ -42,6 +43,29 @@ export function activate(context: vscode.ExtensionContext) {
             await observationStore.update();
         }),
     );
+
+    // --- Guided Setup Walkthrough ---
+
+    const walkthroughManager = new WalkthroughManager(context);
+    context.subscriptions.push(walkthroughManager);
+
+    // Refresh walkthrough context keys when file watchers fire
+    context.subscriptions.push(
+        workspaceManager.onObservationsChanged(async () => {
+            await walkthroughManager.refreshAllContextKeys();
+        }),
+    );
+
+    // Also refresh on config/state changes via a general workspace file watcher
+    if (workspaceFolder) {
+        const sentinelWatcher = vscode.workspace.createFileSystemWatcher(
+            new vscode.RelativePattern(workspaceFolder, '.volition/sentinel/**'),
+        );
+        sentinelWatcher.onDidCreate(() => walkthroughManager.refreshAllContextKeys());
+        sentinelWatcher.onDidChange(() => walkthroughManager.refreshAllContextKeys());
+        sentinelWatcher.onDidDelete(() => walkthroughManager.refreshAllContextKeys());
+        context.subscriptions.push(sentinelWatcher);
+    }
 
     // Initial load (fire-and-forget; errors are logged inside the store)
     if (observationsPath) {

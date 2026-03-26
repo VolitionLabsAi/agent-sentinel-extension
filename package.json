@@ -53,8 +53,26 @@
       {
         "command": "sentinel.focusSession",
         "title": "Sentinel: Focus Session"
+      },
+      {
+        "command": "sentinel.setViewMode",
+        "title": "Sentinel: Set View Mode",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "sentinel.navigateToSession",
+        "title": "Sentinel: Navigate to Session"
       }
     ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "sentinel.setViewMode",
+          "when": "view == sentinel.liveFeed",
+          "group": "navigation"
+        }
+      ]
+    },
     "viewsContainers": {
       "activitybar": [
         {
@@ -72,6 +90,72 @@
         }
       ]
     },
+    "walkthroughs": [
+      {
+        "id": "sentinel-setup",
+        "title": "Get Started with Agent Sentinel",
+        "description": "Set up real-time AI agent monitoring in your workspace.",
+        "steps": [
+          {
+            "id": "what-is-sentinel",
+            "title": "What is Agent Sentinel?",
+            "description": "Agent Sentinel monitors AI agent activity in real time, surfacing safety observations like Error Lens does for compiler diagnostics.\n\n[Learn more](https://github.com/volition/agent-sentinel#readme)",
+            "media": {
+              "image": "media/walkthrough/what-is-sentinel.png",
+              "altText": "Agent Sentinel overview"
+            }
+          },
+          {
+            "id": "configure-workspace",
+            "title": "Configure your workspace",
+            "description": "Initialize a Sentinel configuration in your project to start capturing agent observations.\n\n[Initialize Config](command:sentinel.init)",
+            "media": {
+              "image": "media/walkthrough/configure-workspace.png",
+              "altText": "Configure workspace"
+            },
+            "completionEvents": [
+              "onContext:sentinel.configPresent"
+            ]
+          },
+          {
+            "id": "start-monitoring",
+            "title": "Start monitoring",
+            "description": "Begin monitoring AI agent sessions in your workspace.\n\n[Start Monitoring](command:sentinel.start)",
+            "media": {
+              "image": "media/walkthrough/start-monitoring.png",
+              "altText": "Start monitoring"
+            },
+            "completionEvents": [
+              "onContext:sentinel.running"
+            ]
+          },
+          {
+            "id": "first-observation",
+            "title": "See your first observation",
+            "description": "Once an agent session is active, Sentinel will capture observations automatically. This step completes when your first observation appears.",
+            "media": {
+              "image": "media/walkthrough/first-observation.png",
+              "altText": "First observation"
+            },
+            "completionEvents": [
+              "onContext:sentinel.firstObservation"
+            ]
+          },
+          {
+            "id": "explore-live-feed",
+            "title": "Explore the Live Feed",
+            "description": "Open the Sentinel sidebar to browse observations in real time.\n\n[Open Live Feed](command:sentinel.openLiveFeed)",
+            "media": {
+              "image": "media/walkthrough/explore-live-feed.png",
+              "altText": "Live Feed sidebar"
+            },
+            "completionEvents": [
+              "onCommand:sentinel.openLiveFeed"
+            ]
+          }
+        ]
+      }
+    ],
     "configuration": {
       "title": "Agent Sentinel",
       "properties": {
