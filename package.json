@@ -353,7 +353,10 @@
     "pretest": "tsc -p tsconfig.test.json",
     "test": "mocha --require src/test/vscode-mock.js --ui tdd --timeout 10000 'out/test/suite/**/*.test.js'",
     "test:vscode": "tsc -p tsconfig.test.json && npm run build && vscode-test",
-    "package": "npx @vscode/vsce package --allow-missing-repository"
+    "package": "npx @vscode/vsce package --allow-missing-repository",
+    "docs:dev": "cd docs-site && npx vitepress dev",
+    "docs:build": "cd docs-site && npx vitepress build",
+    "docs:preview": "cd docs-site && npx vitepress preview"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",

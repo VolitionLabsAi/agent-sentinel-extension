@@ -6,3 +6,5 @@ out/
 .vscode-test-workspace/.volition/
 dist/
 benchmarks/benchmark-results.json
+docs-site/.vitepress/dist/
+docs-site/.vitepress/cache/
