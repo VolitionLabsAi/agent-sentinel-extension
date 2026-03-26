@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
+import { LocalEval } from '../types/eval-rule.js';
 
 /**
  * Shape of a single session entry in sentinel-state.json.
@@ -12,10 +13,38 @@ export interface SessionState {
 }
 
 /**
+ * Shape of a sentinel entry within a session in sentinel-state.json.
+ */
+interface SentinelEntry {
+    sentinel_session_id?: string;
+    extractions?: {
+        local_evals?: RawLocalEval[];
+    };
+    [key: string]: unknown;
+}
+
+/**
+ * Raw local eval as it appears in sentinel state JSON.
+ */
+interface RawLocalEval {
+    id?: string;
+    severity?: string;
+    rule?: string;
+    rationale?: string;
+    created_at?: string;
+}
+
+/**
  * Top-level shape of sentinel-state.json.
+ * The real format uses session IDs as keys in a sessions object.
  */
 interface SentinelState {
-    sessions: SessionState[];
+    sessions: Record<string, {
+        transcript_path?: string;
+        started_at?: string;
+        sentinels?: Record<string, SentinelEntry>;
+        [key: string]: unknown;
+    }> | SessionState[];
 }
 
 /**
@@ -30,12 +59,25 @@ export class StateManager implements vscode.Disposable {
     private readonly folderPaths: Map<string, string> = new Map();
     private readonly disposables: vscode.Disposable[] = [];
 
+    /** All known local evals, keyed by "id|created_at" for dedup. */
+    private readonly localEvals: Map<string, LocalEval> = new Map();
+
     private readonly _onSessionsChanged = new vscode.EventEmitter<string[]>();
     /** Fires when sessions are added or removed. Payload is the current session ID list. */
     readonly onSessionsChanged: vscode.Event<string[]> = this._onSessionsChanged.event;
 
+    private readonly _onDynamicEvalCreated = new vscode.EventEmitter<LocalEval>();
+    /** Fires when a new dynamic/local eval is detected from sentinel state. */
+    readonly onDynamicEvalCreated: vscode.Event<LocalEval> = this._onDynamicEvalCreated.event;
+
+    private readonly _onLocalEvalsChanged = new vscode.EventEmitter<void>();
+    /** Fires when the local evals set changes (additions). */
+    readonly onLocalEvalsChanged: vscode.Event<void> = this._onLocalEvalsChanged.event;
+
     constructor() {
         this.disposables.push(this._onSessionsChanged);
+        this.disposables.push(this._onDynamicEvalCreated);
+        this.disposables.push(this._onLocalEvalsChanged);
     }
 
     /**
@@ -147,6 +189,13 @@ export class StateManager implements vscode.Disposable {
         return [...this.sessions.values()];
     }
 
+    /**
+     * Returns all known local/dynamic evals from sentinel state.
+     */
+    getLocalEvals(): LocalEval[] {
+        return [...this.localEvals.values()];
+    }
+
     private async readStateFile(folderKey: string, filePath: string): Promise<void> {
         const folderMap = this.folderSessions.get(folderKey);
         if (!folderMap) {
@@ -159,15 +208,71 @@ export class StateManager implements vscode.Disposable {
             const state = JSON.parse(raw) as SentinelState;
 
             if (Array.isArray(state.sessions)) {
+                // Legacy array format
                 for (const s of state.sessions) {
                     if (s.session_id) {
                         folderMap.set(s.session_id, s);
+                    }
+                }
+            } else if (state.sessions && typeof state.sessions === 'object') {
+                // Object format: session IDs are keys
+                for (const [sessionId, sessionData] of Object.entries(state.sessions)) {
+                    folderMap.set(sessionId, {
+                        session_id: sessionId,
+                        transcript_path: sessionData.transcript_path ?? '',
+                        started_at: sessionData.started_at,
+                    });
+
+                    // Extract local evals from each sentinel within this session
+                    if (sessionData.sentinels) {
+                        this.extractLocalEvals(sessionId, sessionData.sentinels);
                     }
                 }
             }
         } catch {
             // File may not exist yet or be malformed — not fatal
             console.warn(`[StateManager] Could not read state file: ${filePath}`);
+        }
+    }
+
+    /**
+     * Extract local evals from sentinel entries within a session.
+     * Detects NEW evals and fires events for them.
+     */
+    private extractLocalEvals(
+        sessionId: string,
+        sentinels: Record<string, SentinelEntry>,
+    ): void {
+        let anyNew = false;
+
+        for (const [sentinelName, sentinel] of Object.entries(sentinels)) {
+            const rawEvals = sentinel.extractions?.local_evals;
+            if (!rawEvals || !Array.isArray(rawEvals)) { continue; }
+
+            for (const raw of rawEvals) {
+                if (!raw.id || !raw.created_at) { continue; }
+
+                const dedupKey = `${raw.id}|${raw.created_at}`;
+                if (this.localEvals.has(dedupKey)) { continue; }
+
+                const localEval: LocalEval = {
+                    id: raw.id,
+                    severity: (raw.severity as LocalEval['severity']) ?? 'info',
+                    rule: raw.rule ?? '',
+                    rationale: raw.rationale ?? '',
+                    created_at: raw.created_at,
+                    session_id: sessionId,
+                    sentinel_name: sentinelName,
+                };
+
+                this.localEvals.set(dedupKey, localEval);
+                anyNew = true;
+                this._onDynamicEvalCreated.fire(localEval);
+            }
+        }
+
+        if (anyNew) {
+            this._onLocalEvalsChanged.fire();
         }
     }
 
@@ -191,5 +296,6 @@ export class StateManager implements vscode.Disposable {
         this.sessions.clear();
         this.folderSessions.clear();
         this.folderPaths.clear();
+        this.localEvals.clear();
     }
 }

@@ -71,6 +71,27 @@
       {
         "command": "sentinel.init",
         "title": "Sentinel: Initialize Configuration"
+      },
+      {
+        "command": "sentinel.toggleEvalRule",
+        "title": "Sentinel: Toggle Eval Rule"
+      },
+      {
+        "command": "sentinel.inspectDynamicEval",
+        "title": "Sentinel: Inspect Dynamic Eval"
+      },
+      {
+        "command": "sentinel.viewObservationCard",
+        "title": "Sentinel: View Observation Details"
+      },
+      {
+        "command": "sentinel.loadMoreHistory",
+        "title": "Sentinel: Load More History"
+      },
+      {
+        "command": "sentinel.promoteEval",
+        "title": "Sentinel: Promote Dynamic Eval",
+        "icon": "$(arrow-up)"
       }
     ],
     "menus": {
@@ -79,6 +100,18 @@
           "command": "sentinel.setViewMode",
           "when": "view == sentinel.liveFeed",
           "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "sentinel.inspectDynamicEval",
+          "when": "viewItem == evalRule.dynamic",
+          "group": "inline@1"
+        },
+        {
+          "command": "sentinel.promoteEval",
+          "when": "viewItem == evalRule.dynamic",
+          "group": "inline@2"
         }
       ]
     },
@@ -96,6 +129,15 @@
         {
           "id": "sentinel.liveFeed",
           "name": "Live Feed"
+        },
+        {
+          "id": "sentinel.sessionHealth",
+          "name": "Session Health",
+          "type": "webview"
+        },
+        {
+          "id": "sentinel.evalRules",
+          "name": "Eval Rules"
         }
       ]
     },

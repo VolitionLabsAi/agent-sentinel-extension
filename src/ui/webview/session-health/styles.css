@@ -1,0 +1,126 @@
+/* Session Health Webview Styles
+ * Uses VS Code CSS variables for full theme compatibility.
+ * Supports prefers-reduced-motion for accessibility.
+ */
+
+:root {
+    --health-spacing-xs: 4px;
+    --health-spacing-sm: 8px;
+    --health-spacing-md: 12px;
+    --health-spacing-lg: 16px;
+    --health-border-radius: 4px;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+    color: var(--vscode-foreground);
+    background-color: var(--vscode-sideBar-background);
+    padding: var(--health-spacing-md);
+    line-height: 1.4;
+}
+
+/* ---- Metrics Summary Grid ---- */
+.metrics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--health-spacing-sm);
+    margin-bottom: var(--health-spacing-lg);
+}
+
+.metric-card {
+    background: var(--vscode-editorWidget-background);
+    border: 1px solid var(--vscode-editorWidget-border);
+    border-radius: var(--health-border-radius);
+    padding: var(--health-spacing-sm) var(--health-spacing-md);
+    text-align: center;
+}
+
+.metric-value {
+    font-size: 1.4em;
+    font-weight: bold;
+    color: var(--vscode-foreground);
+    display: block;
+}
+
+.metric-label {
+    font-size: 0.85em;
+    color: var(--vscode-descriptionForeground);
+    display: block;
+    margin-top: var(--health-spacing-xs);
+}
+
+/* Failure rate coloring */
+.metric-value.rate-ok {
+    color: var(--vscode-charts-green, #89d185);
+}
+
+.metric-value.rate-warn {
+    color: var(--vscode-charts-yellow, #cca700);
+}
+
+.metric-value.rate-critical {
+    color: var(--vscode-charts-red, #f44747);
+}
+
+/* ---- Section Containers ---- */
+.section {
+    margin-bottom: var(--health-spacing-lg);
+}
+
+.section-title {
+    font-size: 0.8em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--vscode-descriptionForeground);
+    margin-bottom: var(--health-spacing-sm);
+    padding-bottom: var(--health-spacing-xs);
+    border-bottom: 1px solid var(--vscode-editorWidget-border);
+}
+
+.chart-container {
+    display: flex;
+    justify-content: center;
+    padding: var(--health-spacing-sm) 0;
+}
+
+/* Make SVGs responsive within their containers */
+.chart-container svg {
+    max-width: 100%;
+    height: auto;
+}
+
+/* ---- Empty State ---- */
+.empty-state {
+    text-align: center;
+    padding: var(--health-spacing-lg) var(--health-spacing-md);
+    color: var(--vscode-descriptionForeground);
+}
+
+.empty-state .icon {
+    font-size: 2em;
+    margin-bottom: var(--health-spacing-sm);
+    opacity: 0.5;
+}
+
+/* ---- Focus/Keyboard Styles ---- */
+.metric-card:focus-visible,
+.chart-container:focus-visible {
+    outline: 2px solid var(--vscode-focusBorder);
+    outline-offset: 2px;
+}
+
+/* ---- Reduced Motion ---- */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation: none !important;
+        transition: none !important;
+    }
+}

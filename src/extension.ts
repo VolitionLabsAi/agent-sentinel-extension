@@ -9,11 +9,19 @@ import { SentinelCLI } from './cli/sentinel-cli.js';
 import { HealthAssessor } from './health/health-assessor.js';
 import { SessionCorrelator } from './correlation/session-correlator.js';
 import { StateManager } from './stores/state-manager.js';
+import { ConfigManager } from './stores/config-manager.js';
+import { SessionHealthProvider } from './ui/sidebar/session-health-provider.js';
+import { EvalRulesProvider } from './ui/sidebar/eval-rules-provider.js';
+import { EvalRuleTreeItem, DynamicEvalRuleTreeItem } from './ui/sidebar/eval-rule-tree-item.js';
+import { ObservationCardPanel } from './ui/webview/observation-card-panel.js';
+import { promoteLocalEval } from './evals/eval-promotion.js';
 
 /** Derive sentinel file paths for a workspace folder. */
 function sentinelPaths(folder: vscode.WorkspaceFolder) {
     const sentinelDir = path.join(folder.uri.fsPath, '.volition', 'sentinel');
     return {
+        sentinelDir,
+        config: path.join(sentinelDir, 'sentinel.config.json'),
         observations: path.join(sentinelDir, 'sentinel-observations.jsonl'),
         state: path.join(sentinelDir, 'sentinel-state.json'),
     };
@@ -73,6 +81,9 @@ export function activate(context: vscode.ExtensionContext) {
     const stateManager = new StateManager();
     context.subscriptions.push(stateManager);
 
+    const configManager = new ConfigManager();
+    context.subscriptions.push(configManager);
+
     // Register all current workspace folders
     if (vscode.workspace.workspaceFolders) {
         for (const folder of vscode.workspace.workspaceFolders) {
@@ -80,6 +91,7 @@ export function activate(context: vscode.ExtensionContext) {
             const paths = sentinelPaths(folder);
             observationStore.addFolder(key, paths.observations);
             stateManager.addFolder(key, paths.state);
+            configManager.addFolder(key, paths.config, paths.sentinelDir);
         }
     }
 
@@ -91,14 +103,17 @@ export function activate(context: vscode.ExtensionContext) {
                 const paths = sentinelPaths(added);
                 observationStore.addFolder(key, paths.observations);
                 stateManager.addFolder(key, paths.state);
+                configManager.addFolder(key, paths.config, paths.sentinelDir);
                 // Load the new folder's data
                 observationStore.update().catch(() => { /* non-fatal */ });
                 stateManager.update().catch(() => { /* non-fatal */ });
+                configManager.update().catch(() => { /* non-fatal */ });
             }
             for (const removed of e.removed) {
                 const key = removed.uri.toString();
                 observationStore.removeFolder(key);
                 stateManager.removeFolder(key);
+                configManager.removeFolder(key);
             }
         }),
     );
@@ -111,6 +126,122 @@ export function activate(context: vscode.ExtensionContext) {
         showCollapseAll: true,
     });
     context.subscriptions.push(treeView);
+
+    // --- Session Health Webview ---
+
+    const sessionHealthProvider = new SessionHealthProvider(observationStore, stateManager);
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider(SessionHealthProvider.viewType, sessionHealthProvider),
+    );
+
+    // --- Eval Rules Tree View ---
+
+    const evalRulesProvider = new EvalRulesProvider(configManager, observationStore, stateManager);
+    const evalRulesTree = vscode.window.createTreeView('sentinel.evalRules', {
+        treeDataProvider: evalRulesProvider,
+    });
+    context.subscriptions.push(evalRulesTree);
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('sentinel.toggleEvalRule', async (ruleItem: EvalRuleTreeItem) => {
+            if (ruleItem?.rule) {
+                await configManager.setEvalEnabled(ruleItem.rule.id, !ruleItem.rule.enabled);
+                evalRulesProvider.refresh();
+            }
+        }),
+    );
+
+    // --- Dynamic Eval Notifications ---
+
+    context.subscriptions.push(
+        stateManager.onDynamicEvalCreated((localEval) => {
+            void vscode.window.showInformationMessage(
+                `Sentinel learned new eval: ${localEval.id} (${localEval.severity})`,
+                'Inspect',
+            ).then((action) => {
+                if (action === 'Inspect') {
+                    // Focus the eval rules view so the user can see the new dynamic eval
+                    void vscode.commands.executeCommand('sentinel.evalRules.focus');
+                }
+            });
+        }),
+    );
+
+    // Register sentinel.inspectDynamicEval command — opens rule text in untitled document
+    context.subscriptions.push(
+        vscode.commands.registerCommand('sentinel.inspectDynamicEval', async (item: DynamicEvalRuleTreeItem) => {
+            if (!item?.localEval) { return; }
+            const content = [
+                `# ${item.localEval.id} (dynamic eval)`,
+                '',
+                `Severity: ${item.localEval.severity}`,
+                `Sentinel: ${item.localEval.sentinel_name}`,
+                `Session: ${item.localEval.session_id}`,
+                `Created: ${item.localEval.created_at}`,
+                '',
+                '## Rule',
+                '',
+                item.localEval.rule,
+                '',
+                '## Rationale',
+                '',
+                item.localEval.rationale,
+            ].join('\n');
+
+            const doc = await vscode.workspace.openTextDocument({ content, language: 'markdown' });
+            await vscode.window.showTextDocument(doc, { preview: true });
+        }),
+    );
+
+    // --- Dynamic Eval Promotion ---
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('sentinel.promoteEval', async (item: DynamicEvalRuleTreeItem) => {
+            if (!item?.localEval) { return; }
+
+            const confirm = await vscode.window.showInformationMessage(
+                `This will make ${item.localEval.id} a permanent rule. Continue?`,
+                { modal: true },
+                'Continue',
+            );
+
+            if (confirm !== 'Continue') { return; }
+
+            // Determine workspace root from the first workspace folder
+            const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+            if (!workspaceRoot) {
+                void vscode.window.showErrorMessage('No workspace folder open — cannot promote eval.');
+                return;
+            }
+
+            try {
+                const filePath = await promoteLocalEval(item.localEval, workspaceRoot);
+                const openAction = await vscode.window.showInformationMessage(
+                    `Eval ${item.localEval.id} promoted to ${filePath}`,
+                    'Open File',
+                );
+
+                if (openAction === 'Open File') {
+                    const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
+                    await vscode.window.showTextDocument(doc);
+                }
+
+                evalRulesProvider.refresh();
+            } catch (err) {
+                void vscode.window.showErrorMessage(`Failed to promote eval: ${err}`);
+            }
+        }),
+    );
+
+    // --- Observation Card Panel ---
+
+    const cardPanel = new ObservationCardPanel(context.extensionUri);
+    context.subscriptions.push(cardPanel);
+    context.subscriptions.push(
+        vscode.commands.registerCommand('sentinel.viewObservationCard', (observation) => {
+            cardPanel.show(observation);
+        }),
+    );
 
     // --- Session Correlator ---
 
@@ -153,6 +284,7 @@ export function activate(context: vscode.ExtensionContext) {
             if (liveFeedProvider.getViewMode() === 'active') {
                 liveFeedProvider.setSessionFilter(result?.sessionId);
             }
+            sessionHealthProvider.setSessionFilter(result?.sessionId);
             updateSessionContext();
         }),
     );
@@ -258,6 +390,15 @@ export function activate(context: vscode.ExtensionContext) {
     });
     context.subscriptions.push(navigateCmd);
 
+    // --- P2-6: Historical Observation Browsing ---
+
+    const loadMoreCmd = vscode.commands.registerCommand('sentinel.loadMoreHistory', async (sessionId: string) => {
+        if (sessionId) {
+            await liveFeedProvider.loadMoreHistory(sessionId);
+        }
+    });
+    context.subscriptions.push(loadMoreCmd);
+
     // --- File Watcher → Observation Store & Health ---
 
     const workspaceManager = new WorkspaceManager();
@@ -302,9 +443,10 @@ export function activate(context: vscode.ExtensionContext) {
         }
     }
 
-    // Wire config file changes to trigger a health re-check
+    // Wire config file changes to ConfigManager and health re-check
     context.subscriptions.push(
-        workspaceManager.onConfigChanged(async () => {
+        workspaceManager.onConfigChanged(async (uri) => {
+            await configManager.update(uri);
             await healthAssessor.runCheckForAllFolders();
         }),
     );
@@ -316,6 +458,10 @@ export function activate(context: vscode.ExtensionContext) {
 
     stateManager.load().catch((err) => {
         console.warn('[Agent Sentinel] Initial state load failed:', err);
+    });
+
+    configManager.load().catch((err) => {
+        console.warn('[Agent Sentinel] Initial config load failed:', err);
     });
 
     // Run initial health check and start periodic checks
@@ -332,6 +478,9 @@ export function activate(context: vscode.ExtensionContext) {
         sessionCorrelator,
         stateManager,
         healthAssessor,
+        configManager,
+        sessionHealthProvider,
+        evalRulesProvider,
     };
 }
 

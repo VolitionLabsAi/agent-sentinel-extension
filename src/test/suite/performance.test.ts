@@ -2,6 +2,10 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { ObservationStore } from '../../stores/observation-store';
 import { PersistentObservation } from '../../types/observation';
+import { renderSparkline } from '../../ui/charts/sparkline';
+import { renderDonut } from '../../ui/charts/donut';
+import { renderTimeline } from '../../ui/charts/timeline';
+import type { DonutSegment, TimelinePoint } from '../../types/health-metrics';
 
 suite('Performance Gates', () => {
 
@@ -107,6 +111,83 @@ suite('Performance Gates', () => {
         assert.strictEqual(turns[turns.length - 1], MAX * 2 - 1);
 
         store.dispose();
+    });
+});
+
+suite('Chart Performance Gates', () => {
+
+    test('sparkline renders 1000 points in <100ms', () => {
+        const data: number[] = [];
+        for (let i = 0; i < 1000; i++) {
+            data.push(Math.random() * 500);
+        }
+
+        const start = performance.now();
+        const svg = renderSparkline(data, { width: 260, height: 40 });
+        const elapsed = performance.now() - start;
+
+        console.log(`Sparkline 1000 points: ${elapsed.toFixed(2)}ms`);
+        assert.ok(svg.includes('<svg'), 'Expected valid SVG output');
+        assert.ok(svg.includes('aria-label'), 'Expected aria-label on SVG');
+        assert.ok(
+            elapsed < 100,
+            `Sparkline render took ${elapsed.toFixed(1)}ms, exceeds 100ms gate`,
+        );
+    });
+
+    test('donut chart renders 10 segments in <100ms', () => {
+        const segments: DonutSegment[] = [];
+        const colors = [
+            'var(--vscode-charts-red, #f44747)',
+            'var(--vscode-charts-yellow, #cca700)',
+            'var(--vscode-charts-blue, #3794ff)',
+            'var(--vscode-charts-green, #89d185)',
+            'var(--vscode-charts-purple, #b180d7)',
+        ];
+        for (let i = 0; i < 10; i++) {
+            segments.push({
+                label: `Segment ${i}`,
+                value: Math.floor(Math.random() * 100) + 1,
+                color: colors[i % colors.length],
+            });
+        }
+
+        const start = performance.now();
+        const svg = renderDonut(segments, { size: 120, thickness: 16 });
+        const elapsed = performance.now() - start;
+
+        console.log(`Donut 10 segments: ${elapsed.toFixed(2)}ms`);
+        assert.ok(svg.includes('<svg'), 'Expected valid SVG output');
+        assert.ok(svg.includes('aria-label'), 'Expected aria-label on SVG');
+        assert.ok(
+            elapsed < 100,
+            `Donut render took ${elapsed.toFixed(1)}ms, exceeds 100ms gate`,
+        );
+    });
+
+    test('timeline renders 1000 points in <100ms', () => {
+        const severities: Array<'critical' | 'warning' | 'info'> = ['critical', 'warning', 'info'];
+        const baseTime = Date.now();
+        const points: TimelinePoint[] = [];
+        for (let i = 0; i < 1000; i++) {
+            points.push({
+                timestamp: new Date(baseTime + i * 1000).toISOString(),
+                severity: severities[i % 3],
+                evalId: `TEST-${(i % 50).toString().padStart(3, '0')}`,
+            });
+        }
+
+        const start = performance.now();
+        const svg = renderTimeline(points, { width: 260, height: 60 });
+        const elapsed = performance.now() - start;
+
+        console.log(`Timeline 1000 points: ${elapsed.toFixed(2)}ms`);
+        assert.ok(svg.includes('<svg'), 'Expected valid SVG output');
+        assert.ok(svg.includes('aria-label'), 'Expected aria-label on SVG');
+        assert.ok(
+            elapsed < 100,
+            `Timeline render took ${elapsed.toFixed(1)}ms, exceeds 100ms gate`,
+        );
     });
 });
 

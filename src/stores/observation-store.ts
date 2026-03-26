@@ -17,10 +17,35 @@ interface FolderState {
     byteOffset: number;
 }
 
+/**
+ * Per-session history tracking — how many total observations exist vs. what's in memory.
+ */
+interface SessionHistoryState {
+    /** Total observations ever seen for this session (including evicted). */
+    totalCount: number;
+}
+
+/**
+ * Cached result from a historical disk read — expires after a short TTL.
+ */
+interface HistoryCache {
+    observations: PersistentObservation[];
+    timestamp: number;
+}
+
+/** How long (ms) to cache historical disk reads to avoid re-reading on rapid scrolling. */
+const HISTORY_CACHE_TTL_MS = 5000;
+
 export class ObservationStore implements vscode.Disposable {
     private observations: Map<string, PersistentObservation[]> = new Map();
     private readonly folders: Map<string, FolderState> = new Map();
     private readonly maxObservations: number;
+
+    /** Tracks total observation count per session so we know when disk has more. */
+    private readonly sessionHistory: Map<string, SessionHistoryState> = new Map();
+
+    /** Brief cache for disk reads keyed by `${sessionId}:${beforeIndex}:${limit}`. */
+    private readonly historyCache: Map<string, HistoryCache> = new Map();
 
     private readonly _onObservationReceived = new vscode.EventEmitter<PersistentObservation>();
     public readonly onObservationReceived: vscode.Event<PersistentObservation> = this._onObservationReceived.event;
@@ -62,6 +87,8 @@ export class ObservationStore implements vscode.Disposable {
      */
     async load(): Promise<void> {
         this.observations.clear();
+        this.sessionHistory.clear();
+        this.historyCache.clear();
         for (const state of this.folders.values()) {
             state.byteOffset = 0;
         }
@@ -101,6 +128,8 @@ export class ObservationStore implements vscode.Disposable {
         if (stat.size < folderState.byteOffset) {
             // Truncation detected — full re-read for this folder
             folderState.byteOffset = 0;
+            this.sessionHistory.clear();
+            this.historyCache.clear();
             await this.readNewLines(folderState);
             return;
         }
@@ -166,6 +195,14 @@ export class ObservationStore implements vscode.Disposable {
         }
         sessionObs.push(obs);
 
+        // Track total count (including observations that will be evicted)
+        let histState = this.sessionHistory.get(sessionId);
+        if (!histState) {
+            histState = { totalCount: 0 };
+            this.sessionHistory.set(sessionId, histState);
+        }
+        histState.totalCount++;
+
         // Evict oldest if over the limit for this session
         if (sessionObs.length > this.maxObservations) {
             sessionObs.splice(0, sessionObs.length - this.maxObservations);
@@ -204,15 +241,153 @@ export class ObservationStore implements vscode.Disposable {
     }
 
     /**
+     * Returns true if there are observations on disk beyond what's in memory for this session.
+     */
+    hasMoreHistory(sessionId: string): boolean {
+        const inMemory = this.observations.get(sessionId)?.length ?? 0;
+        const total = this.sessionHistory.get(sessionId)?.totalCount ?? 0;
+        return total > inMemory;
+    }
+
+    /**
+     * Load historical observations from disk for a session, beyond the in-memory cache.
+     *
+     * @param sessionId - The session to load history for
+     * @param beforeIndex - Load observations older than this index in the full session history
+     *                      (0-based from oldest). Pass the current oldest in-memory index.
+     * @param limit - Maximum number of observations to return
+     * @returns Observations in reverse chronological order (newest of the historical batch first)
+     */
+    async getHistoricalObservations(
+        sessionId: string,
+        beforeIndex: number,
+        limit: number = 100,
+    ): Promise<PersistentObservation[]> {
+        // Check brief cache first
+        const cacheKey = `${sessionId}:${beforeIndex}:${limit}`;
+        const cached = this.historyCache.get(cacheKey);
+        if (cached && (Date.now() - cached.timestamp) < HISTORY_CACHE_TTL_MS) {
+            return cached.observations;
+        }
+
+        // Read all observations for this session from all JSONL files on disk
+        const allFromDisk = await this.readAllFromDisk(sessionId);
+
+        // allFromDisk is in chronological order (oldest first, as written to JSONL).
+        // We want observations with index < beforeIndex, newest first.
+        const endIndex = Math.min(beforeIndex, allFromDisk.length);
+        const startIndex = Math.max(0, endIndex - limit);
+        const slice = allFromDisk.slice(startIndex, endIndex);
+        slice.reverse(); // newest of the batch first
+
+        // Cache the result
+        this.historyCache.set(cacheKey, { observations: slice, timestamp: Date.now() });
+
+        return slice;
+    }
+
+    /**
+     * Get the index of the oldest observation currently in memory for a session.
+     * This is the boundary where historical disk reads should start.
+     *
+     * Returns the total count minus the in-memory count — i.e., how many
+     * observations were evicted and only exist on disk.
+     */
+    getOldestInMemoryIndex(sessionId: string): number {
+        const total = this.sessionHistory.get(sessionId)?.totalCount ?? 0;
+        const inMemory = this.observations.get(sessionId)?.length ?? 0;
+        return total - inMemory;
+    }
+
+    /**
+     * Read ALL observations for a given session from disk across all tracked folders.
+     * Returns in chronological order (oldest first).
+     */
+    private async readAllFromDisk(sessionId: string): Promise<PersistentObservation[]> {
+        const results: PersistentObservation[] = [];
+
+        for (const state of this.folders.values()) {
+            let fileHandle: fs.FileHandle | undefined;
+            try {
+                fileHandle = await fs.open(state.filePath, 'r');
+                const stat = await fileHandle.stat();
+                if (stat.size === 0) {
+                    continue;
+                }
+
+                // Read in chunks to keep memory bounded
+                const CHUNK_SIZE = 256 * 1024; // 256KB
+                let offset = 0;
+                let remainder = '';
+
+                while (offset < stat.size) {
+                    const bytesToRead = Math.min(CHUNK_SIZE, stat.size - offset);
+                    const buffer = Buffer.alloc(bytesToRead);
+                    const { bytesRead } = await fileHandle.read(buffer, 0, bytesToRead, offset);
+                    offset += bytesRead;
+
+                    const chunk = remainder + buffer.toString('utf-8', 0, bytesRead);
+                    const lines = chunk.split('\n');
+
+                    // Last element may be incomplete if we're mid-file
+                    remainder = offset < stat.size ? (lines.pop() ?? '') : '';
+
+                    for (const line of lines) {
+                        const trimmed = line.trim();
+                        if (trimmed.length === 0) {
+                            continue;
+                        }
+                        try {
+                            const obs = JSON.parse(trimmed) as PersistentObservation;
+                            if (obs.session_id === sessionId) {
+                                results.push(obs);
+                            }
+                        } catch {
+                            // Skip malformed lines
+                        }
+                    }
+                }
+
+                // Handle any trailing remainder
+                if (remainder.trim().length > 0) {
+                    try {
+                        const obs = JSON.parse(remainder.trim()) as PersistentObservation;
+                        if (obs.session_id === sessionId) {
+                            results.push(obs);
+                        }
+                    } catch {
+                        // Skip malformed trailing data
+                    }
+                }
+            } catch {
+                // File doesn't exist or read error — skip this folder
+            } finally {
+                await fileHandle?.close();
+            }
+        }
+
+        return results;
+    }
+
+    /**
      * Remove all observations for a given session.
      */
     clearSession(sessionId: string): void {
         this.observations.delete(sessionId);
+        this.sessionHistory.delete(sessionId);
+        // Invalidate any cached history for this session
+        for (const key of this.historyCache.keys()) {
+            if (key.startsWith(`${sessionId}:`)) {
+                this.historyCache.delete(key);
+            }
+        }
     }
 
     dispose(): void {
         this._onObservationReceived.dispose();
         this.observations.clear();
         this.folders.clear();
+        this.sessionHistory.clear();
+        this.historyCache.clear();
     }
 }
