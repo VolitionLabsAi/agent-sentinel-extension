@@ -4,11 +4,15 @@ import { ObservationTreeItem, ObservationDetailItem } from './observation-tree-i
 
 type FeedItem = ObservationTreeItem | ObservationDetailItem;
 
+export type ViewMode = 'all' | 'active' | 'pinned';
+
 /**
  * TreeDataProvider that displays sentinel observations in real-time.
  *
- * New observations appear at the TOP. Supports optional sessionId filtering
- * for future Active/Pinned view modes.
+ * Supports three view modes:
+ * - 'all': show all observations across sessions (session label on each item)
+ * - 'active': auto-filter to focused Claude Code tab via SessionCorrelator
+ * - 'pinned': user-pinned session; feed stays filtered regardless of tab
  */
 export class LiveFeedProvider implements vscode.TreeDataProvider<FeedItem>, vscode.Disposable {
     private readonly _onDidChangeTreeData = new vscode.EventEmitter<FeedItem | undefined | void>();
@@ -16,6 +20,7 @@ export class LiveFeedProvider implements vscode.TreeDataProvider<FeedItem>, vsco
 
     private readonly disposables: vscode.Disposable[] = [];
     private sessionFilter: string | undefined;
+    private viewMode: ViewMode = 'active';
 
     constructor(private readonly store: ObservationStore) {
         this.disposables.push(this._onDidChangeTreeData);
@@ -30,6 +35,25 @@ export class LiveFeedProvider implements vscode.TreeDataProvider<FeedItem>, vsco
     setSessionFilter(sessionId: string | undefined): void {
         this.sessionFilter = sessionId;
         this.refresh();
+    }
+
+    /** Get the current view mode. */
+    getViewMode(): ViewMode {
+        return this.viewMode;
+    }
+
+    /** Set the view mode and update the session filter accordingly. */
+    setViewMode(mode: ViewMode): void {
+        this.viewMode = mode;
+        if (mode === 'all') {
+            this.sessionFilter = undefined;
+        }
+        this.refresh();
+    }
+
+    /** Get the current session filter value. */
+    getSessionFilter(): string | undefined {
+        return this.sessionFilter;
     }
 
     refresh(): void {
@@ -56,10 +80,19 @@ export class LiveFeedProvider implements vscode.TreeDataProvider<FeedItem>, vsco
         }
 
         // Newest first
+        const showSessionLabel = this.viewMode === 'all';
         return observations
             .slice()
             .reverse()
-            .map((obs) => new ObservationTreeItem(obs));
+            .map((obs) => {
+                const item = new ObservationTreeItem(obs);
+                if (showSessionLabel) {
+                    // Append short session ID to the description
+                    const shortId = obs.session_id.slice(0, 8);
+                    item.description = `${item.description ?? ''}  ⟨${shortId}⟩`;
+                }
+                return item;
+            });
     }
 
     private getObservationDetails(parent: ObservationTreeItem): ObservationDetailItem[] {

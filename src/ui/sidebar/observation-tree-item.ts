@@ -44,6 +44,13 @@ export class ObservationTreeItem extends vscode.TreeItem {
         this.iconPath = new vscode.ThemeIcon(meta.icon, new vscode.ThemeColor(meta.color));
         this.contextValue = `observation.${observation.severity}`;
 
+        // P1-14: Clickable observation → navigate to Claude Code session
+        this.command = {
+            command: 'sentinel.navigateToSession',
+            title: 'Navigate to Session',
+            arguments: [observation.session_id],
+        };
+
         this.tooltip = new vscode.MarkdownString(
             [
                 `**${meta.label}** — ${observation.eval_id}`,

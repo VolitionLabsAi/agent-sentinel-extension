@@ -14,6 +14,7 @@ interface StatusInfo {
     healthState: HealthState;
     sessionCount: number;
     lastObservationSeverity: string | undefined;
+    sessionContext: string | undefined;
 }
 
 const HEALTH_LABELS: Record<HealthState, string> = {
@@ -45,6 +46,7 @@ export class StatusBarManager implements vscode.Disposable {
         healthState: 'not-initialized',
         sessionCount: 0,
         lastObservationSeverity: undefined,
+        sessionContext: undefined,
     };
 
     constructor(context: vscode.ExtensionContext) {
@@ -103,6 +105,15 @@ export class StatusBarManager implements vscode.Disposable {
     }
 
     /**
+     * Update the session context label shown in the status bar text.
+     * Values: 'All' | session name | 'Pinned: name' | undefined
+     */
+    setSessionContext(context: string | undefined): void {
+        this.info.sessionContext = context;
+        this.render();
+    }
+
+    /**
      * Convenience: update all status fields at once.
      */
     update(partial: Partial<StatusInfo>): void {
@@ -149,8 +160,9 @@ export class StatusBarManager implements vscode.Disposable {
     private render(): void {
         const { healthState } = this.info;
 
-        // Text
-        this.item.text = `${HEALTH_ICONS[healthState]} Sentinel`;
+        // Text — include session context when available
+        const sessionSuffix = this.info.sessionContext ? ` (${this.info.sessionContext})` : '';
+        this.item.text = `${HEALTH_ICONS[healthState]} Sentinel${sessionSuffix}`;
 
         // Colors
         this.item.color = this.getForegroundColor(healthState);
@@ -197,6 +209,10 @@ export class StatusBarManager implements vscode.Disposable {
 
         if (lastObservationSeverity) {
             lines.push(`Last observation: ${lastObservationSeverity}`);
+        }
+
+        if (this.info.sessionContext) {
+            lines.push(`Session: ${this.info.sessionContext}`);
         }
 
         lines.push(``, `Visibility: ${this.visibilityMode} *(click to cycle)*`);
