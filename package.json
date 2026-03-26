@@ -1,0 +1,125 @@
+{
+  "name": "agent-sentinel",
+  "displayName": "Agent Sentinel",
+  "description": "Real-time AI agent monitoring — Error Lens + GitLens for AI agent safety",
+  "version": "0.0.1",
+  "publisher": "volition",
+  "license": "Apache-2.0",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Testing"
+  ],
+  "keywords": [
+    "ai",
+    "sentinel",
+    "monitoring",
+    "safety",
+    "agent"
+  ],
+  "activationEvents": [
+    "workspaceContains:**/.volition/sentinel/sentinel.config.json",
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "sentinel.start",
+        "title": "Sentinel: Start Monitoring"
+      },
+      {
+        "command": "sentinel.stop",
+        "title": "Sentinel: Stop Monitoring"
+      },
+      {
+        "command": "sentinel.status",
+        "title": "Sentinel: Show Status"
+      },
+      {
+        "command": "sentinel.openLiveFeed",
+        "title": "Sentinel: Open Live Feed"
+      },
+      {
+        "command": "sentinel.runHealthCheck",
+        "title": "Sentinel: Run Health Check"
+      },
+      {
+        "command": "sentinel.focusSession",
+        "title": "Sentinel: Focus Session"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "sentinel",
+          "title": "Agent Sentinel",
+          "icon": "$(shield)"
+        }
+      ]
+    },
+    "views": {
+      "sentinel": [
+        {
+          "id": "sentinel.liveFeed",
+          "name": "Live Feed"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Agent Sentinel",
+      "properties": {
+        "sentinel.autoStart": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically start monitoring when sentinel config is detected"
+        },
+        "sentinel.statusBar.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show sentinel status in the status bar"
+        },
+        "sentinel.observations.maxInMemory": {
+          "type": "number",
+          "default": 1000,
+          "description": "Maximum number of observations to keep in memory"
+        },
+        "sentinel.viewMode": {
+          "type": "string",
+          "enum": [
+            "all",
+            "active",
+            "pinned"
+          ],
+          "default": "all",
+          "description": "Default view mode for the live feed"
+        },
+        "sentinel.doctor.backgroundInterval": {
+          "type": "number",
+          "default": 300,
+          "description": "Background health check interval in seconds"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src --ext ts",
+    "test": "echo \"No tests yet\" && exit 0",
+    "package": "npx @vscode/vsce package --allow-missing-repository"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "esbuild": "^0.24.0",
+    "eslint": "^8.57.0",
+    "prettier": "^3.0.0",
+    "typescript": "^5.5.0"
+  }
+}
