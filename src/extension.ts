@@ -10,6 +10,15 @@ import { HealthAssessor } from './health/health-assessor.js';
 import { SessionCorrelator } from './correlation/session-correlator.js';
 import { StateManager } from './stores/state-manager.js';
 
+/** Derive sentinel file paths for a workspace folder. */
+function sentinelPaths(folder: vscode.WorkspaceFolder) {
+    const sentinelDir = path.join(folder.uri.fsPath, '.volition', 'sentinel');
+    return {
+        observations: path.join(sentinelDir, 'sentinel-observations.jsonl'),
+        state: path.join(sentinelDir, 'sentinel-state.json'),
+    };
+}
+
 export function activate(context: vscode.ExtensionContext) {
     console.log('Agent Sentinel activated');
 
@@ -29,22 +38,70 @@ export function activate(context: vscode.ExtensionContext) {
     );
     context.subscriptions.push(runHealthCheckCmd);
 
+    // --- Placeholder commands (declared in package.json, implemented in a future release) ---
+
+    const placeholderCommands = [
+        { id: 'sentinel.start', label: 'Start Monitoring' },
+        { id: 'sentinel.stop', label: 'Stop Monitoring' },
+        { id: 'sentinel.status', label: 'Show Status' },
+        { id: 'sentinel.openLiveFeed', label: 'Open Live Feed' },
+        { id: 'sentinel.init', label: 'Initialize Configuration' },
+    ];
+
+    for (const { id, label } of placeholderCommands) {
+        context.subscriptions.push(
+            vscode.commands.registerCommand(id, () => {
+                void vscode.window.showInformationMessage(
+                    `Sentinel: ${label} — coming in a future release.`,
+                );
+            }),
+        );
+    }
+
+    // --- Settings ---
+
+    const sentinelConfig = vscode.workspace.getConfiguration('sentinel');
+    const autoStart = sentinelConfig.get<boolean>('autoStart', false);
+    const maxInMemory = sentinelConfig.get<number>('observations.maxInMemory', 1000);
+    console.log(`[Agent Sentinel] autoStart: ${autoStart}`);
+
     // --- Observation Store & Live Feed ---
 
-    // Resolve paths from the first workspace folder
-    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-    const sentinelDir = workspaceFolder
-        ? path.join(workspaceFolder.uri.fsPath, '.volition', 'sentinel')
-        : '';
-    const observationsPath = sentinelDir
-        ? path.join(sentinelDir, 'sentinel-observations.jsonl')
-        : '';
-    const statePath = sentinelDir
-        ? path.join(sentinelDir, 'sentinel-state.json')
-        : '';
-
-    const observationStore = new ObservationStore(observationsPath);
+    const observationStore = new ObservationStore(maxInMemory);
     context.subscriptions.push(observationStore);
+
+    const stateManager = new StateManager();
+    context.subscriptions.push(stateManager);
+
+    // Register all current workspace folders
+    if (vscode.workspace.workspaceFolders) {
+        for (const folder of vscode.workspace.workspaceFolders) {
+            const key = folder.uri.toString();
+            const paths = sentinelPaths(folder);
+            observationStore.addFolder(key, paths.observations);
+            stateManager.addFolder(key, paths.state);
+        }
+    }
+
+    // Handle dynamic workspace folder changes
+    context.subscriptions.push(
+        vscode.workspace.onDidChangeWorkspaceFolders((e) => {
+            for (const added of e.added) {
+                const key = added.uri.toString();
+                const paths = sentinelPaths(added);
+                observationStore.addFolder(key, paths.observations);
+                stateManager.addFolder(key, paths.state);
+                // Load the new folder's data
+                observationStore.update().catch(() => { /* non-fatal */ });
+                stateManager.update().catch(() => { /* non-fatal */ });
+            }
+            for (const removed of e.removed) {
+                const key = removed.uri.toString();
+                observationStore.removeFolder(key);
+                stateManager.removeFolder(key);
+            }
+        }),
+    );
 
     const liveFeedProvider = new LiveFeedProvider(observationStore);
     context.subscriptions.push(liveFeedProvider);
@@ -55,20 +112,17 @@ export function activate(context: vscode.ExtensionContext) {
     });
     context.subscriptions.push(treeView);
 
-    // --- State Manager & Session Correlator ---
-
-    const stateManager = new StateManager(statePath);
-    context.subscriptions.push(stateManager);
+    // --- Session Correlator ---
 
     const sessionCorrelator = new SessionCorrelator(stateManager);
     context.subscriptions.push(sessionCorrelator);
 
     // --- P1-08: Multi-Session View Modes ---
 
-    // Read persisted view mode from settings (default: 'active')
+    // Read persisted view mode from settings (default matches package.json: 'all')
     const initialMode = vscode.workspace
         .getConfiguration('sentinel')
-        .get<ViewMode>('viewMode', 'active');
+        .get<ViewMode>('viewMode', 'all');
     liveFeedProvider.setViewMode(initialMode);
 
     /** Helper to update session context in the status bar based on current mode. */
@@ -211,8 +265,15 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Wire observation file changes to the store's incremental update
     context.subscriptions.push(
-        workspaceManager.onObservationsChanged(async () => {
-            await observationStore.update();
+        workspaceManager.onObservationsChanged(async (uri) => {
+            await observationStore.update(uri);
+        }),
+    );
+
+    // Wire state file changes to the state manager's incremental update
+    context.subscriptions.push(
+        workspaceManager.onStateChanged(async (uri) => {
+            await stateManager.update(uri);
         }),
     );
 
@@ -229,14 +290,16 @@ export function activate(context: vscode.ExtensionContext) {
     );
 
     // Also refresh on config/state changes via a general workspace file watcher
-    if (workspaceFolder) {
-        const sentinelWatcher = vscode.workspace.createFileSystemWatcher(
-            new vscode.RelativePattern(workspaceFolder, '.volition/sentinel/**'),
-        );
-        sentinelWatcher.onDidCreate(() => walkthroughManager.refreshAllContextKeys());
-        sentinelWatcher.onDidChange(() => walkthroughManager.refreshAllContextKeys());
-        sentinelWatcher.onDidDelete(() => walkthroughManager.refreshAllContextKeys());
-        context.subscriptions.push(sentinelWatcher);
+    if (vscode.workspace.workspaceFolders) {
+        for (const folder of vscode.workspace.workspaceFolders) {
+            const sentinelWatcher = vscode.workspace.createFileSystemWatcher(
+                new vscode.RelativePattern(folder, '.volition/sentinel/**'),
+            );
+            sentinelWatcher.onDidCreate(() => walkthroughManager.refreshAllContextKeys());
+            sentinelWatcher.onDidChange(() => walkthroughManager.refreshAllContextKeys());
+            sentinelWatcher.onDidDelete(() => walkthroughManager.refreshAllContextKeys());
+            context.subscriptions.push(sentinelWatcher);
+        }
     }
 
     // Wire config file changes to trigger a health re-check
@@ -246,18 +309,14 @@ export function activate(context: vscode.ExtensionContext) {
         }),
     );
 
-    // Initial load (fire-and-forget; errors are logged inside the store)
-    if (observationsPath) {
-        observationStore.load().catch((err) => {
-            console.warn('[Agent Sentinel] Initial observation load failed:', err);
-        });
-    }
+    // Initial load (fire-and-forget; errors are logged inside the stores)
+    observationStore.load().catch((err) => {
+        console.warn('[Agent Sentinel] Initial observation load failed:', err);
+    });
 
-    if (statePath) {
-        stateManager.load().catch((err) => {
-            console.warn('[Agent Sentinel] Initial state load failed:', err);
-        });
-    }
+    stateManager.load().catch((err) => {
+        console.warn('[Agent Sentinel] Initial state load failed:', err);
+    });
 
     // Run initial health check and start periodic checks
     healthAssessor.runCheckForAllFolders().catch((err) => {

@@ -19,34 +19,88 @@ interface SentinelState {
 }
 
 /**
- * StateManager reads and parses .volition/sentinel/sentinel-state.json,
- * tracks the session list, and emits events when sessions change.
+ * StateManager reads and parses .volition/sentinel/sentinel-state.json
+ * from all workspace folders, merges sessions, and emits events when sessions change.
  */
 export class StateManager implements vscode.Disposable {
     private sessions: Map<string, SessionState> = new Map();
+    /** Per-folder session sets for targeted updates. */
+    private readonly folderSessions: Map<string, Map<string, SessionState>> = new Map();
+    /** Folder key -> state file path. */
+    private readonly folderPaths: Map<string, string> = new Map();
     private readonly disposables: vscode.Disposable[] = [];
 
     private readonly _onSessionsChanged = new vscode.EventEmitter<string[]>();
     /** Fires when sessions are added or removed. Payload is the current session ID list. */
     readonly onSessionsChanged: vscode.Event<string[]> = this._onSessionsChanged.event;
 
-    constructor(private readonly stateFilePath: string) {
+    constructor() {
         this.disposables.push(this._onSessionsChanged);
     }
 
     /**
-     * Initial load of the state file.
+     * Register a workspace folder's state file for tracking.
+     */
+    addFolder(folderKey: string, stateFilePath: string): void {
+        if (!this.folderPaths.has(folderKey)) {
+            this.folderPaths.set(folderKey, stateFilePath);
+            this.folderSessions.set(folderKey, new Map());
+        }
+    }
+
+    /**
+     * Remove a workspace folder from tracking.
+     */
+    removeFolder(folderKey: string): void {
+        this.folderPaths.delete(folderKey);
+        this.folderSessions.delete(folderKey);
+        this.rebuildMergedSessions();
+    }
+
+    /**
+     * Resolve the folder key from a URI (the folder whose state file changed).
+     */
+    private folderKeyFromUri(uri: vscode.Uri): string | undefined {
+        for (const [key, filePath] of this.folderPaths) {
+            if (uri.fsPath === filePath) {
+                return key;
+            }
+        }
+        return undefined;
+    }
+
+    /**
+     * Initial load of all registered folders' state files.
      */
     async load(): Promise<void> {
-        await this.readStateFile();
+        for (const [key, filePath] of this.folderPaths) {
+            await this.readStateFile(key, filePath);
+        }
+        this.rebuildMergedSessions();
     }
 
     /**
      * Incremental update — called by file watcher on change.
+     * If a URI is provided, only the matching folder is re-read.
      */
-    async update(): Promise<void> {
+    async update(uri?: vscode.Uri): Promise<void> {
         const previousIds = new Set(this.sessions.keys());
-        await this.readStateFile();
+
+        if (uri) {
+            const key = this.folderKeyFromUri(uri);
+            if (key) {
+                const filePath = this.folderPaths.get(key)!;
+                await this.readStateFile(key, filePath);
+            }
+        } else {
+            // Re-read all folders
+            for (const [key, filePath] of this.folderPaths) {
+                await this.readStateFile(key, filePath);
+            }
+        }
+
+        this.rebuildMergedSessions();
+
         const currentIds = new Set(this.sessions.keys());
 
         // Detect additions or removals
@@ -93,22 +147,39 @@ export class StateManager implements vscode.Disposable {
         return [...this.sessions.values()];
     }
 
-    private async readStateFile(): Promise<void> {
+    private async readStateFile(folderKey: string, filePath: string): Promise<void> {
+        const folderMap = this.folderSessions.get(folderKey);
+        if (!folderMap) {
+            return;
+        }
+        folderMap.clear();
+
         try {
-            const raw = await fs.readFile(this.stateFilePath, 'utf-8');
+            const raw = await fs.readFile(filePath, 'utf-8');
             const state = JSON.parse(raw) as SentinelState;
 
-            this.sessions.clear();
             if (Array.isArray(state.sessions)) {
                 for (const s of state.sessions) {
                     if (s.session_id) {
-                        this.sessions.set(s.session_id, s);
+                        folderMap.set(s.session_id, s);
                     }
                 }
             }
         } catch {
             // File may not exist yet or be malformed — not fatal
-            console.warn(`[StateManager] Could not read state file: ${this.stateFilePath}`);
+            console.warn(`[StateManager] Could not read state file: ${filePath}`);
+        }
+    }
+
+    /**
+     * Rebuild the merged sessions map from all folder session maps.
+     */
+    private rebuildMergedSessions(): void {
+        this.sessions.clear();
+        for (const folderMap of this.folderSessions.values()) {
+            for (const [id, session] of folderMap) {
+                this.sessions.set(id, session);
+            }
         }
     }
 
@@ -118,5 +189,7 @@ export class StateManager implements vscode.Disposable {
         }
         this.disposables.length = 0;
         this.sessions.clear();
+        this.folderSessions.clear();
+        this.folderPaths.clear();
     }
 }

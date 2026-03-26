@@ -28,7 +28,7 @@ const HEALTH_LABELS: Record<HealthState, string> = {
 const HEALTH_ICONS: Record<HealthState, string> = {
     'not-initialized': '$(shield)',
     'idle': '$(shield)',
-    'running': '$(shield)',
+    'running': '$(eye)',
     'degraded': '$(warning)',
     'error': '$(error)',
 };
@@ -49,7 +49,7 @@ export class StatusBarManager implements vscode.Disposable {
         sessionContext: undefined,
     };
 
-    constructor(context: vscode.ExtensionContext) {
+    constructor(_context: vscode.ExtensionContext) {
         this.item = vscode.window.createStatusBarItem(
             vscode.StatusBarAlignment.Left,
             100,
@@ -62,7 +62,6 @@ export class StatusBarManager implements vscode.Disposable {
             () => this.cycleVisibility(),
         );
         this.disposables.push(cmd);
-        context.subscriptions.push(cmd);
 
         // Listen for config changes
         const configWatcher = vscode.workspace.onDidChangeConfiguration((e) => {
@@ -71,7 +70,6 @@ export class StatusBarManager implements vscode.Disposable {
             }
         });
         this.disposables.push(configWatcher);
-        context.subscriptions.push(configWatcher);
 
         // Initial render
         this.render();

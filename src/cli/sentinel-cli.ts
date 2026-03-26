@@ -51,50 +51,39 @@ export class SentinelCLI {
         const fullArgs = [...args, '--format', 'json', '--project-dir', projectDir];
 
         return new Promise<CLIResult>((resolve) => {
-            try {
-                const child = cp.execFile(
-                    binary,
-                    fullArgs,
-                    {
-                        timeout: COMMAND_TIMEOUT_MS,
-                        maxBuffer: 1024 * 1024,
-                        env: { ...process.env },
-                    },
-                    (error, stdout, stderr) => {
-                        const exitCode = error && 'code' in error
-                            ? (typeof error.code === 'number' ? error.code : 2)
-                            : 0;
-
-                        let json: unknown | undefined;
-                        try {
-                            if (stdout.trim()) {
-                                json = JSON.parse(stdout);
-                            }
-                        } catch {
-                            // JSON parse failed — leave as undefined
+            cp.execFile(
+                binary,
+                fullArgs,
+                {
+                    timeout: COMMAND_TIMEOUT_MS,
+                    maxBuffer: 1024 * 1024,
+                    env: { ...process.env },
+                },
+                (error, stdout, stderr) => {
+                    let exitCode = 0;
+                    if (error) {
+                        if (error.killed) {
+                            // Process was killed due to timeout
+                            exitCode = -1;
+                        } else if (typeof error.code === 'number') {
+                            exitCode = error.code;
+                        } else {
+                            exitCode = 2;
                         }
+                    }
 
-                        resolve({ exitCode, json, stdout, stderr });
-                    },
-                );
+                    let json: unknown | undefined;
+                    try {
+                        if (stdout.trim()) {
+                            json = JSON.parse(stdout);
+                        }
+                    } catch {
+                        // JSON parse failed — leave as undefined
+                    }
 
-                // Safety: if the child somehow doesn't call back, we still resolve
-                child.on('error', (err) => {
-                    resolve({
-                        exitCode: -1,
-                        json: undefined,
-                        stdout: '',
-                        stderr: err.message,
-                    });
-                });
-            } catch (err) {
-                resolve({
-                    exitCode: -1,
-                    json: undefined,
-                    stdout: '',
-                    stderr: err instanceof Error ? err.message : String(err),
-                });
-            }
+                    resolve({ exitCode, json, stdout, stderr });
+                },
+            );
         });
     }
 

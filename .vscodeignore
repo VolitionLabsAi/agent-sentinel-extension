@@ -4,9 +4,13 @@
 src/**
 node_modules/**
 .github/**
+docs/**
 .eslintrc.json
 .prettierrc
+.gitignore
 tsconfig.json
 esbuild.mjs
+out/test/**
+tsconfig.test.json
 **/*.ts
 **/*.map

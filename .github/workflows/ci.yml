@@ -34,9 +34,13 @@ jobs:
       - name: Build
         run: npm run build -- --production
 
-      # Future: uncomment when tests are added
-      # - name: Test
-      #   run: npm test
+      - name: Create test workspace
+        run: mkdir -p .vscode-test-workspace/.volition/sentinel
+
+      - name: Run tests (performance + E2E)
+        run: xvfb-run -a npm test
+        env:
+          DISPLAY: ':99'
 
       - name: Package extension
         run: npx @vscode/vsce package --allow-missing-repository
