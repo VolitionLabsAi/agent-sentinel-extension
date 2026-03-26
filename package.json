@@ -27,6 +27,10 @@
   "contributes": {
     "commands": [
       {
+        "command": "sentinel.cycleVisibility",
+        "title": "Sentinel: Cycle Status Bar Visibility"
+      },
+      {
         "command": "sentinel.start",
         "title": "Sentinel: Start Monitoring"
       },
