@@ -30,6 +30,12 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "jsonValidation": [
+      {
+        "fileMatch": "**/sentinel.config.json",
+        "url": "./schemas/sentinel.config.schema.json"
+      }
+    ],
     "commands": [
       {
         "command": "sentinel.cycleVisibility",

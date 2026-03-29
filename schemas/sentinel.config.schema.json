@@ -1,0 +1,153 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Agent Sentinel Configuration",
+  "description": "Configuration for Agent Sentinel — real-time AI agent monitoring. This file controls which sentinels run, how they behave, and how observations are displayed.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema reference for editor IntelliSense."
+    },
+    "version": {
+      "type": "string",
+      "description": "Configuration schema version.",
+      "default": "1.0"
+    },
+    "auto_start": {
+      "type": "boolean",
+      "description": "Automatically start sentinel monitoring when a new agent session is detected.",
+      "markdownDescription": "Automatically start sentinel monitoring when a new agent session is detected.\n\nWhen `true`, sentinels will launch without requiring a manual `Sentinel: Start Monitoring` command.",
+      "default": false
+    },
+    "defaults": {
+      "type": "object",
+      "description": "Default values applied to all sentinels unless overridden per-sentinel.",
+      "properties": {
+        "model": {
+          "type": "string",
+          "description": "Default Claude model used for sentinel evaluations.",
+          "markdownDescription": "Default Claude model used for sentinel evaluations.\n\nOverride per-sentinel with the `model` field in each sentinel entry.",
+          "default": "claude-sonnet-4-5"
+        },
+        "visibility": {
+          "type": "string",
+          "description": "Default visibility mode for sentinel observations.",
+          "markdownDescription": "Default visibility mode for sentinel observations.\n\n- `auto` — Sentinel decides visibility based on observation severity\n- `visible` — Always show observations to the user\n- `transparent` — Observations are logged but not surfaced inline",
+          "enum": ["auto", "visible", "transparent"],
+          "default": "auto"
+        },
+        "execution": {
+          "type": "string",
+          "description": "Whether sentinels run in parallel or sequentially.",
+          "markdownDescription": "Whether sentinels run in parallel or sequentially.\n\n- `parallel` — All sentinels evaluate concurrently (faster, recommended)\n- `sequential` — Sentinels evaluate one at a time",
+          "enum": ["parallel", "sequential"],
+          "default": "parallel"
+        }
+      },
+      "additionalProperties": false
+    },
+    "display": {
+      "type": "object",
+      "description": "Display and template configuration for sentinel output.",
+      "properties": {
+        "brand": {
+          "type": "string",
+          "description": "Brand name shown in observation messages and the status bar.",
+          "default": "SENTINEL"
+        },
+        "observation": {
+          "type": "string",
+          "description": "Template for formatting observation messages.",
+          "markdownDescription": "Template for formatting observation messages.\n\nAvailable placeholders: `{{emoji}}`, `{{brand}}`, `{{domain}}`, `{{message}}`, `{{eval_id}}`",
+          "default": "{{emoji}} {{brand}} [{{domain}}] {{message}} -- *{{eval_id}}*"
+        },
+        "registration": {
+          "type": "string",
+          "description": "Template for the registration message shown when monitoring starts.",
+          "markdownDescription": "Template for the registration message shown when monitoring starts.\n\nAvailable placeholders: `{{brand}}`, `{{version}}`",
+          "default": "\ud83d\udfe2 {{brand}} Monitoring active -- *v{{version}}*"
+        }
+      },
+      "additionalProperties": false
+    },
+    "sentinels": {
+      "type": "array",
+      "description": "List of sentinel configurations. Each sentinel monitors agent activity using a specific eval set.",
+      "items": {
+        "type": "object",
+        "description": "Configuration for a single sentinel.",
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Short identifier for the sentinel (e.g. \"GEN\", \"SEC\"). Used in observation output and state tracking.",
+            "markdownDescription": "Short unique identifier for the sentinel (e.g. `GEN`, `SEC`).\n\nUsed in observation output, state tracking, and log file names. **Required.**"
+          },
+          "label": {
+            "type": "string",
+            "description": "Human-readable label for the sentinel (e.g. \"General\", \"Security\")."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether this sentinel is active. Disabled sentinels are skipped during evaluation.",
+            "default": true
+          },
+          "model": {
+            "type": "string",
+            "description": "Claude model to use for this sentinel. Overrides the default model.",
+            "markdownDescription": "Claude model to use for this sentinel.\n\nOverrides `defaults.model` if set."
+          },
+          "frequency": {
+            "type": "string",
+            "description": "How often this sentinel evaluates the transcript.",
+            "markdownDescription": "How often this sentinel evaluates the transcript.\n\n- `every-turn` — Evaluate after every agent turn\n- `every-n-turns` — Evaluate every N turns (set N with `frequencyN`)",
+            "enum": ["every-turn", "every-n-turns"],
+            "default": "every-turn"
+          },
+          "frequencyN": {
+            "type": "integer",
+            "description": "Number of turns between evaluations when frequency is \"every-n-turns\".",
+            "markdownDescription": "Number of turns between evaluations when `frequency` is `every-n-turns`.\n\nOnly used when `frequency` is set to `every-n-turns`.",
+            "minimum": 1
+          },
+          "visibility": {
+            "type": "string",
+            "description": "Visibility mode for this sentinel's observations. Overrides the default.",
+            "markdownDescription": "Visibility mode for this sentinel's observations.\n\n- `auto` — Sentinel decides based on severity\n- `visible` — Always surface observations\n- `transparent` — Log only, don't surface inline\n\nOverrides `defaults.visibility` if set.",
+            "enum": ["auto", "visible", "transparent"]
+          },
+          "evalSet": {
+            "type": "string",
+            "description": "Path to the eval YAML file, relative to the .volition/sentinel/ directory.",
+            "markdownDescription": "Path to the eval YAML file, relative to the `.volition/sentinel/` directory.\n\nExample: `evals/general.yaml`"
+          },
+          "evalVersion": {
+            "type": "string",
+            "description": "Version of the eval set to use.",
+            "default": "1.0"
+          },
+          "timeout": {
+            "type": "integer",
+            "description": "Timeout in seconds for this sentinel's evaluation call.",
+            "markdownDescription": "Timeout in seconds for this sentinel's evaluation call.\n\nIf the sentinel does not respond within this time, the evaluation is skipped and a timeout is recorded.",
+            "default": 120,
+            "minimum": 1
+          },
+          "status_mode": {
+            "type": "string",
+            "description": "Controls what status information this sentinel reports.",
+            "default": "observations_only"
+          },
+          "heartbeat_interval": {
+            "type": "integer",
+            "description": "Interval in seconds between heartbeat checks for this sentinel.",
+            "default": 10,
+            "minimum": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
