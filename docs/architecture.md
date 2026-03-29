@@ -989,7 +989,7 @@ class ObservationRenderer {
 | `sentinel.auto` | Spawn `sentinel auto` | Yes |
 | `sentinel.openSentinelChat` | `claude-vscode.editor.open(sessionId)` | Yes |
 | `sentinel.createEval` | Open eval creation webview | Yes |
-| `sentinel.cycleVisibility` | Toggle status bar click | Yes |
+| `sentinel.setViewMode` | Open view mode picker | Yes |
 | `sentinel.focusSession` | Set pinned session | Internal |
 | `sentinel.navigateToSession` | `claude-vscode.editor.open(sessionId)` | Internal |
 

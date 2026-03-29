@@ -5,11 +5,6 @@ import * as vscode from 'vscode';
  */
 export type HealthState = 'not-initialized' | 'idle' | 'running' | 'degraded' | 'error';
 
-/**
- * Visibility mode cycled on click: auto → show → hide.
- */
-type VisibilityMode = 'auto' | 'show' | 'hide';
-
 interface StatusInfo {
     healthState: HealthState;
     sessionCount: number;
@@ -34,14 +29,13 @@ const HEALTH_ICONS: Record<HealthState, string> = {
 };
 
 /**
- * Manages the sentinel status bar item, including health state display,
- * click-to-cycle visibility, and tooltip information.
+ * Manages the sentinel status bar item, including health state display
+ * and tooltip information.
  */
 export class StatusBarManager implements vscode.Disposable {
     private readonly item: vscode.StatusBarItem;
     private readonly disposables: vscode.Disposable[] = [];
 
-    private visibilityMode: VisibilityMode = 'auto';
     private info: StatusInfo = {
         healthState: 'not-initialized',
         sessionCount: 0,
@@ -54,18 +48,11 @@ export class StatusBarManager implements vscode.Disposable {
             vscode.StatusBarAlignment.Left,
             100,
         );
-        this.item.command = 'sentinel.cycleVisibility';
+        this.item.command = 'sentinel.setViewMode';
 
-        // Register the cycle-visibility command
-        const cmd = vscode.commands.registerCommand(
-            'sentinel.cycleVisibility',
-            () => this.cycleVisibility(),
-        );
-        this.disposables.push(cmd);
-
-        // Initial render — status bar defaults to enabled
+        // Initial render — status bar is always visible
         this.render();
-        this.applyVisibility();
+        this.item.show();
     }
 
     // ── Public API ──────────────────────────────────────────────
@@ -119,23 +106,6 @@ export class StatusBarManager implements vscode.Disposable {
     }
 
     // ── Internals ───────────────────────────────────────────────
-
-    private cycleVisibility(): void {
-        const order: VisibilityMode[] = ['auto', 'show', 'hide'];
-        const idx = order.indexOf(this.visibilityMode);
-        this.visibilityMode = order[(idx + 1) % order.length];
-        this.render();
-        this.applyVisibility();
-    }
-
-    private applyVisibility(): void {
-        if (this.visibilityMode === 'hide') {
-            this.item.hide();
-        } else {
-            // auto and show both show the item (no VS Code setting dependency)
-            this.item.show();
-        }
-    }
 
     private render(): void {
         const { healthState } = this.info;
@@ -195,7 +165,7 @@ export class StatusBarManager implements vscode.Disposable {
             lines.push(`Session: ${this.info.sessionContext}`);
         }
 
-        lines.push(``, `Visibility: ${this.visibilityMode} *(click to cycle)*`);
+        lines.push(``, `*(click to change view mode)*`);
 
         const md = new vscode.MarkdownString(lines.join('\n\n'));
         md.isTrusted = true;

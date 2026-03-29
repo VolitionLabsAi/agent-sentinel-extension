@@ -39,15 +39,12 @@ interface StatusBarManagerTestable {
         command: string | undefined;
         _visible: boolean;
     };
-    visibilityMode: string;
     info: {
         healthState: HealthState;
         sessionCount: number;
         lastObservationSeverity: string | undefined;
         sessionContext: string | undefined;
     };
-    cycleVisibility(): void;
-    applyVisibility(): void;
 }
 
 suite('StatusBarManager', () => {
@@ -127,53 +124,6 @@ suite('StatusBarManager', () => {
         }
     });
 
-    // ── Visibility cycling ───────────────────────────────────
-
-    test('initial visibility mode is auto', () => {
-        const internal = manager as unknown as StatusBarManagerTestable;
-        assert.strictEqual(internal.visibilityMode, 'auto');
-    });
-
-    test('cycleVisibility cycles auto -> show -> hide -> auto', () => {
-        const internal = manager as unknown as StatusBarManagerTestable;
-        assert.strictEqual(internal.visibilityMode, 'auto');
-
-        internal.cycleVisibility();
-        assert.strictEqual(internal.visibilityMode, 'show');
-
-        internal.cycleVisibility();
-        assert.strictEqual(internal.visibilityMode, 'hide');
-
-        internal.cycleVisibility();
-        assert.strictEqual(internal.visibilityMode, 'auto');
-    });
-
-    test('hide mode hides the status bar item', () => {
-        const internal = manager as unknown as StatusBarManagerTestable;
-        // Cycle to hide (auto -> show -> hide)
-        internal.cycleVisibility();
-        internal.cycleVisibility();
-        assert.strictEqual(internal.visibilityMode, 'hide');
-        assert.strictEqual(internal.item._visible, false);
-    });
-
-    test('show mode shows the status bar item', () => {
-        const internal = manager as unknown as StatusBarManagerTestable;
-
-        // Cycle to show
-        internal.cycleVisibility();
-        assert.strictEqual(internal.visibilityMode, 'show');
-        assert.strictEqual(internal.item._visible, true);
-    });
-
-    // ── Visibility modes ───────────────────
-
-    test('auto mode shows the item (defaults to enabled)', () => {
-        const internal = manager as unknown as StatusBarManagerTestable;
-        internal.applyVisibility();
-        assert.strictEqual(internal.item._visible, true);
-    });
-
     // ── Session context and update ───────────────────────────
 
     test('setSessionContext includes context in text', () => {
@@ -224,10 +174,10 @@ suite('StatusBarManager', () => {
         assert.ok(tooltip.value.includes('critical'), 'Tooltip should include severity');
     });
 
-    test('tooltip includes visibility mode', () => {
+    test('tooltip includes click hint for view mode', () => {
         const internal = manager as unknown as StatusBarManagerTestable;
         const tooltip = internal.item.tooltip as vscode.MarkdownString;
-        assert.ok(tooltip.value.includes('auto'), 'Tooltip should include visibility mode');
+        assert.ok(tooltip.value.includes('click to change view mode'), 'Tooltip should include view mode hint');
     });
 
     // ── Dispose ──────────────────────────────────────────────

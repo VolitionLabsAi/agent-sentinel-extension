@@ -65,7 +65,7 @@ All commands are available programmatically via `vscode.commands.executeCommand`
 | `sentinel.openLiveFeed` | Focus the sidebar observation feed |
 | `sentinel.runHealthCheck` | Run diagnostics on setup |
 | `sentinel.focusSession` | Switch focus to a specific session |
-| `sentinel.cycleVisibility` | Cycle status bar display modes |
+| `sentinel.setViewMode` | Open view mode picker |
 | `sentinel.selectHarness` | Change the default harness |
 
 ## Events
