@@ -43,6 +43,25 @@ function sentinelPaths(folder: vscode.WorkspaceFolder) {
     };
 }
 
+/**
+ * Resolve a session title by checking state manager first, then falling back
+ * to transcript extraction via the session correlator.
+ */
+async function resolveSessionTitle(
+    sessionId: string,
+    stateMgr: StateManager,
+    correlator: SessionCorrelator,
+): Promise<string | null> {
+    const session = stateMgr.getSession(sessionId);
+    if (session?.title) {
+        return session.title;
+    }
+    if (session?.transcript_path) {
+        return correlator.extractSessionTitle(session.transcript_path);
+    }
+    return null;
+}
+
 export function activate(context: vscode.ExtensionContext) {
     console.log('[Agent Sentinel] Activation started');
 
@@ -670,8 +689,20 @@ export function activate(context: vscode.ExtensionContext) {
                 break;
             case 'recent': {
                 const result = sessionCorrelator.getCurrentSession();
-                const shortId = result ? result.sessionId.slice(0, 8) : undefined;
-                statusBar.setSessionContext(shortId ? `Recent: ${shortId}` : 'Recent');
+                if (result) {
+                    resolveSessionTitle(result.sessionId, stateManager, sessionCorrelator).then((title) => {
+                        if (title) {
+                            const truncated = title.length > 30 ? title.slice(0, 27) + '...' : title;
+                            statusBar.setSessionContext(`Recent: ${truncated}`);
+                        } else {
+                            statusBar.setSessionContext(`Recent: ${result.sessionId.slice(0, 8)}`);
+                        }
+                    }).catch(() => {
+                        statusBar.setSessionContext(`Recent: ${result.sessionId.slice(0, 8)}`);
+                    });
+                } else {
+                    statusBar.setSessionContext('Recent');
+                }
                 break;
             }
             case 'pinned': {
@@ -698,10 +729,25 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Register sentinel.setViewMode command — quick pick for mode selection
     const setViewModeCmd = vscode.commands.registerCommand('sentinel.setViewMode', async () => {
+        // Resolve recent session title for the quick pick description
+        let recentDescription = 'Most recently interacted session';
+        try {
+            const recentResult = await sessionCorrelator.readActiveSessionFile();
+            if (recentResult) {
+                const title = await resolveSessionTitle(recentResult.sessionId, stateManager, sessionCorrelator);
+                const shortId = recentResult.sessionId.slice(0, 8);
+                recentDescription = title
+                    ? `${title} (${shortId})`
+                    : `Most recently interacted session`;
+            }
+        } catch {
+            // Fall back to default description
+        }
+
         const picked = await vscode.window.showQuickPick(
             [
                 { label: '$(globe) All Sessions', description: 'Show observations from all sessions', mode: 'all' as ViewMode },
-                { label: '$(eye) Recent Session', description: 'Auto-filter to the most recent session from hooks', mode: 'recent' as ViewMode },
+                { label: '$(eye) Recent Session', description: recentDescription, mode: 'recent' as ViewMode },
                 { label: '$(pin) Pinned Session', description: 'Pin a specific session', mode: 'pinned' as ViewMode },
             ],
             { placeHolder: 'Select view mode for the Live Feed' },
