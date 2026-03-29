@@ -144,6 +144,13 @@ export class SessionCorrelator implements vscode.Disposable {
             return titleResult;
         }
 
+        // Signal 4: Most recently modified transcript (last resort, low confidence)
+        // Unlike Signal 2, this has no time window — picks the most recent regardless.
+        const recentResult = await this.correlateByMostRecentTranscript(sessionIds);
+        if (recentResult) {
+            return recentResult;
+        }
+
         return null;
     }
 
@@ -218,10 +225,45 @@ export class SessionCorrelator implements vscode.Disposable {
     }
 
     /**
+     * Signal 4: Pick the session whose transcript was most recently modified,
+     * without any time-window constraint. Used as a last-resort fallback
+     * when a harness tab is active but no other signal can identify the session.
+     */
+    private async correlateByMostRecentTranscript(
+        sessionIds: string[],
+    ): Promise<CorrelationResult | null> {
+        let bestSessionId: string | undefined;
+        let bestMtime = 0;
+
+        for (const sessionId of sessionIds) {
+            const transcriptPath = this.stateManager.getTranscriptPath(sessionId);
+            if (!transcriptPath) {
+                continue;
+            }
+            try {
+                const stat = await fs.stat(transcriptPath);
+                const mtime = stat.mtimeMs;
+                if (mtime > bestMtime) {
+                    bestMtime = mtime;
+                    bestSessionId = sessionId;
+                }
+            } catch {
+                // Transcript file may not exist yet — skip
+            }
+        }
+
+        if (bestSessionId) {
+            return { sessionId: bestSessionId, confidence: 'low' };
+        }
+
+        return null;
+    }
+
+    /**
      * Extract a session title from the first few lines of a transcript JSONL.
      * Looks for a "summary" or "title" field in the JSON entries.
      */
-    private async extractSessionTitle(transcriptPath: string): Promise<string | null> {
+    async extractSessionTitle(transcriptPath: string): Promise<string | null> {
         let fileHandle: Awaited<ReturnType<typeof fs.open>> | undefined;
         try {
             fileHandle = await fs.open(transcriptPath, 'r');

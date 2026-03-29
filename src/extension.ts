@@ -737,14 +737,19 @@ export function activate(context: vscode.ExtensionContext) {
             return;
         }
 
-        const items = sessionIds.map((id) => {
+        // Resolve titles: prefer state title, fall back to transcript title extraction
+        const items = await Promise.all(sessionIds.map(async (id) => {
             const session = stateManager.getSession(id);
+            let title = session?.title;
+            if (!title && session?.transcript_path) {
+                title = await sessionCorrelator.extractSessionTitle(session.transcript_path) ?? undefined;
+            }
             return {
-                label: session?.title ?? id.slice(0, 12),
+                label: title ?? 'Untitled',
                 description: id,
                 sessionId: id,
             };
-        });
+        }));
 
         const picked = await vscode.window.showQuickPick(items, {
             placeHolder: 'Select a session to pin',

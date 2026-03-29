@@ -58,6 +58,7 @@ interface RawLocalEval {
 interface SentinelState {
     sessions: Record<string, {
         transcript_path?: string;
+        title?: string;
         started_at?: string;
         sentinels?: Record<string, SentinelEntry>;
         [key: string]: unknown;
@@ -264,6 +265,7 @@ export class StateManager implements vscode.Disposable {
                         session_id: sessionId,
                         transcript_path: sessionData.transcript_path ?? '',
                         started_at: sessionData.started_at,
+                        title: typeof sessionData.title === 'string' ? sessionData.title : undefined,
                     });
 
                     // Extract sentinel session info and local evals
