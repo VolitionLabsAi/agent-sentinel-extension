@@ -167,6 +167,24 @@ export function activate(context: vscode.ExtensionContext) {
         }
     }
 
+    // --- React to sentinel.autoStart toggled mid-session ---
+
+    context.subscriptions.push(
+        vscode.workspace.onDidChangeConfiguration((e) => {
+            if (e.affectsConfiguration('sentinel.autoStart')) {
+                const enabled = vscode.workspace.getConfiguration('sentinel').get<boolean>('autoStart', false);
+                if (enabled) {
+                    const folders = vscode.workspace.workspaceFolders ?? [];
+                    for (const folder of folders) {
+                        tryAutoStart(cli, folder).catch((err) => {
+                            console.warn('[Agent Sentinel] Auto-start on config change failed:', err);
+                        });
+                    }
+                }
+            }
+        }),
+    );
+
     // --- Observation Store & Live Feed ---
 
     const observationStore = new ObservationStore(maxInMemory);
