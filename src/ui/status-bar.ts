@@ -63,17 +63,9 @@ export class StatusBarManager implements vscode.Disposable {
         );
         this.disposables.push(cmd);
 
-        // Listen for config changes
-        const configWatcher = vscode.workspace.onDidChangeConfiguration((e) => {
-            if (e.affectsConfiguration('sentinel.statusBar.enabled')) {
-                this.applyEnabledSetting();
-            }
-        });
-        this.disposables.push(configWatcher);
-
-        // Initial render
+        // Initial render — status bar defaults to enabled
         this.render();
-        this.applyEnabledSetting();
+        this.applyVisibility();
     }
 
     // ── Public API ──────────────────────────────────────────────
@@ -133,25 +125,15 @@ export class StatusBarManager implements vscode.Disposable {
         const idx = order.indexOf(this.visibilityMode);
         this.visibilityMode = order[(idx + 1) % order.length];
         this.render();
-        this.applyEnabledSetting();
+        this.applyVisibility();
     }
 
-    private applyEnabledSetting(): void {
-        const enabled = vscode.workspace
-            .getConfiguration('sentinel.statusBar')
-            .get<boolean>('enabled', true);
-
+    private applyVisibility(): void {
         if (this.visibilityMode === 'hide') {
             this.item.hide();
-        } else if (this.visibilityMode === 'show') {
-            this.item.show();
         } else {
-            // auto – respect the setting
-            if (enabled) {
-                this.item.show();
-            } else {
-                this.item.hide();
-            }
+            // auto and show both show the item (no VS Code setting dependency)
+            this.item.show();
         }
     }
 

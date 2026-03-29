@@ -57,9 +57,8 @@ export class HealthAssessor implements vscode.Disposable {
     startPeriodicCheck(): void {
         this.stopPeriodicCheck();
 
-        const intervalSec = vscode.workspace
-            .getConfiguration('sentinel.doctor')
-            .get<number>('backgroundInterval', 300);
+        // Default background interval: 300 seconds (5 minutes)
+        const intervalSec = 300;
 
         this.intervalHandle = setInterval(() => {
             this.runCheckForAllFolders().catch((err) => {

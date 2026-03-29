@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import * as fs from 'fs';
 import { StatusBarManager } from './ui/status-bar.js';
 import { ObservationStore } from './stores/observation-store.js';
 import { LiveFeedProvider, ViewMode } from './ui/sidebar/live-feed-provider.js';
@@ -43,29 +42,6 @@ function sentinelPaths(folder: vscode.WorkspaceFolder) {
     };
 }
 
-/**
- * Auto-start sentinel monitoring if the config file exists.
- * Extracted for testability.
- */
-export async function tryAutoStart(cli: SentinelCLI, folder: vscode.WorkspaceFolder): Promise<void> {
-    const configPath = sentinelPaths(folder).config;
-    if (!fs.existsSync(configPath)) {
-        console.log('[Agent Sentinel] autoStart enabled but no sentinel config found');
-        return;
-    }
-    console.log('[Agent Sentinel] Auto-starting sentinel monitoring...');
-    // TODO: Pass session ID to avoid mtime-based session discovery in the CLI.
-    // The SessionCorrelator is not available at autoStart time (created later in activate()).
-    // For now, the CLI falls back to mtime-based discovery.
-    const result = await cli.execSentinel(['start'], folder.uri.fsPath);
-    if (result.exitCode === 0) {
-        console.log('[Agent Sentinel] Sentinel auto-started successfully');
-        void vscode.window.showInformationMessage('Sentinel auto-started');
-    } else {
-        console.warn(`[Agent Sentinel] Sentinel auto-start failed (exit ${result.exitCode}): ${result.stderr}`);
-    }
-}
-
 export function activate(context: vscode.ExtensionContext) {
     console.log('[Agent Sentinel] Activation started');
 
@@ -91,10 +67,21 @@ export function activate(context: vscode.ExtensionContext) {
     );
     context.subscriptions.push(runHealthCheckCmd);
 
-    // Open settings filtered to sentinel
+    // Open sentinel.config.json for the first workspace folder
     context.subscriptions.push(
-        vscode.commands.registerCommand('sentinel.openSettings', () => {
-            void vscode.commands.executeCommand('workbench.action.openSettings', 'sentinel');
+        vscode.commands.registerCommand('sentinel.openSettings', async () => {
+            const folder = vscode.workspace.workspaceFolders?.[0];
+            if (!folder) {
+                void vscode.window.showErrorMessage('Sentinel: No workspace folder open.');
+                return;
+            }
+            const configPath = sentinelPaths(folder).config;
+            try {
+                const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(configPath));
+                await vscode.window.showTextDocument(doc);
+            } catch {
+                void vscode.window.showWarningMessage('Sentinel: No sentinel config found. Run "Sentinel: Initialize Configuration" first.');
+            }
         }),
     );
 
@@ -108,7 +95,9 @@ export function activate(context: vscode.ExtensionContext) {
                 return;
             }
             const configPath = sentinelPaths(folder).config;
-            if (!fs.existsSync(configPath)) {
+            try {
+                await vscode.workspace.fs.stat(vscode.Uri.file(configPath));
+            } catch {
                 void vscode.window.showWarningMessage('Sentinel: No sentinel config found in this workspace. Run "Sentinel: Initialize Configuration" first.');
                 return;
             }
@@ -159,43 +148,9 @@ export function activate(context: vscode.ExtensionContext) {
         );
     }
 
-    // --- Settings ---
-
-    const sentinelConfig = vscode.workspace.getConfiguration('sentinel');
-    const autoStart = sentinelConfig.get<boolean>('autoStart', false);
-    const maxInMemory = sentinelConfig.get<number>('observations.maxInMemory', 1000);
-    console.log(`[Agent Sentinel] autoStart: ${autoStart}`);
-
-    // --- Auto-start sentinel if configured ---
-
-    if (autoStart) {
-        for (const folder of (vscode.workspace.workspaceFolders ?? [])) {
-            tryAutoStart(cli, folder).catch((err) => {
-                console.warn('[Agent Sentinel] Sentinel auto-start error:', err);
-            });
-        }
-    }
-
-    // --- React to sentinel.autoStart toggled mid-session ---
-
-    context.subscriptions.push(
-        vscode.workspace.onDidChangeConfiguration((e) => {
-            if (e.affectsConfiguration('sentinel.autoStart')) {
-                const enabled = vscode.workspace.getConfiguration('sentinel').get<boolean>('autoStart', false);
-                if (enabled) {
-                    const folders = vscode.workspace.workspaceFolders ?? [];
-                    for (const folder of folders) {
-                        tryAutoStart(cli, folder).catch((err) => {
-                            console.warn('[Agent Sentinel] Auto-start on config change failed:', err);
-                        });
-                    }
-                }
-            }
-        }),
-    );
-
     // --- Observation Store & Live Feed ---
 
+    const maxInMemory = 1000;
     const observationStore = new ObservationStore(maxInMemory);
     context.subscriptions.push(observationStore);
 
@@ -375,12 +330,6 @@ export function activate(context: vscode.ExtensionContext) {
 
     const harnessConfigResolver = new HarnessConfigResolver(configManager, adapterRegistry);
 
-    // Read harness preference from settings
-    const harnessSetting = vscode.workspace
-        .getConfiguration('sentinel')
-        .get<string>('harness.default', 'auto');
-    console.log(`[Agent Sentinel] harness.default: ${harnessSetting}`);
-
     context.subscriptions.push(
         vscode.commands.registerCommand('sentinel.selectHarness', async () => {
             const harnesses = harnessConfigResolver.getAvailableHarnesses();
@@ -407,9 +356,8 @@ export function activate(context: vscode.ExtensionContext) {
             });
 
             if (picked) {
-                await vscode.workspace
-                    .getConfiguration('sentinel')
-                    .update('harness.default', picked.settingId, vscode.ConfigurationTarget.Global);
+                // Write the harness preference to sentinel.config.json
+                await configManager.setHarnessConfig('_default', { model: picked.settingId });
                 void vscode.window.showInformationMessage(
                     `Sentinel harness set to: ${picked.settingId === 'auto' ? 'Auto-detect' : picked.label.replace(/\$\([^)]+\)\s*/, '')}`,
                 );
@@ -702,10 +650,8 @@ export function activate(context: vscode.ExtensionContext) {
 
     // --- P1-08: Multi-Session View Modes ---
 
-    // Read persisted view mode from settings (default matches package.json: 'all')
-    const initialMode = vscode.workspace
-        .getConfiguration('sentinel')
-        .get<ViewMode>('viewMode', 'all');
+    // Default view mode is 'all'; view mode is ephemeral (not persisted to settings)
+    const initialMode: ViewMode = 'all';
     liveFeedProvider.setViewMode(initialMode);
 
     /** Helper to update session context in the status bar based on current mode. */
@@ -741,16 +687,7 @@ export function activate(context: vscode.ExtensionContext) {
         }),
     );
 
-    if (initialMode === 'active') {
-        sessionCorrelator.correlateActiveSession().then((result) => {
-            if (liveFeedProvider.getViewMode() === 'active') {
-                liveFeedProvider.setSessionFilter(result?.sessionId);
-            }
-            updateSessionContext();
-        }).catch(() => { /* non-fatal */ });
-    } else {
-        updateSessionContext();
-    }
+    updateSessionContext();
 
     // Register sentinel.setViewMode command — quick pick for mode selection
     const setViewModeCmd = vscode.commands.registerCommand('sentinel.setViewMode', async () => {
@@ -786,8 +723,6 @@ export function activate(context: vscode.ExtensionContext) {
             }
         }
 
-        // Persist the chosen mode
-        await vscode.workspace.getConfiguration('sentinel').update('viewMode', mode, vscode.ConfigurationTarget.Global);
         updateSessionContext();
     });
     context.subscriptions.push(setViewModeCmd);
@@ -816,7 +751,6 @@ export function activate(context: vscode.ExtensionContext) {
         if (picked) {
             liveFeedProvider.setViewMode('pinned');
             liveFeedProvider.setSessionFilter(picked.sessionId);
-            await vscode.workspace.getConfiguration('sentinel').update('viewMode', 'pinned', vscode.ConfigurationTarget.Global);
             updateSessionContext();
         }
     });

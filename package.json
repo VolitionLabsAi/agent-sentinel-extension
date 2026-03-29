@@ -298,70 +298,7 @@
           }
         ]
       }
-    ],
-    "configuration": {
-      "title": "Agent Sentinel",
-      "properties": {
-        "sentinel.autoStart": {
-          "type": "boolean",
-          "default": false,
-          "description": "Automatically start monitoring when sentinel config is detected"
-        },
-        "sentinel.statusBar.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "Show sentinel status in the status bar"
-        },
-        "sentinel.observations.maxInMemory": {
-          "type": "number",
-          "default": 1000,
-          "description": "Maximum number of observations to keep in memory"
-        },
-        "sentinel.viewMode": {
-          "type": "string",
-          "enum": [
-            "all",
-            "active",
-            "pinned"
-          ],
-          "default": "all",
-          "description": "Default view mode for the live feed"
-        },
-        "sentinel.doctor.backgroundInterval": {
-          "type": "number",
-          "default": 300,
-          "description": "Background health check interval in seconds"
-        },
-        "sentinel.harness.default": {
-          "type": "string",
-          "enum": [
-            "auto",
-            "claude-code",
-            "copilot",
-            "codex",
-            "gemini-cli"
-          ],
-          "default": "auto",
-          "description": "Default AI harness for sentinel monitoring. 'auto' detects the active harness."
-        },
-        "sentinel.harness.overrides": {
-          "type": "object",
-          "default": {},
-          "description": "Per-harness sentinel configuration overrides",
-          "additionalProperties": {
-            "type": "object",
-            "properties": {
-              "model": {
-                "type": "string"
-              },
-              "evalSet": {
-                "type": "string"
-              }
-            }
-          }
-        }
-      }
-    }
+    ]
   },
   "scripts": {
     "build": "node esbuild.mjs",

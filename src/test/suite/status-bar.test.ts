@@ -47,7 +47,7 @@ interface StatusBarManagerTestable {
         sessionContext: string | undefined;
     };
     cycleVisibility(): void;
-    applyEnabledSetting(): void;
+    applyVisibility(): void;
 }
 
 suite('StatusBarManager', () => {
@@ -157,13 +157,8 @@ suite('StatusBarManager', () => {
         assert.strictEqual(internal.item._visible, false);
     });
 
-    test('show mode shows the status bar item regardless of setting', () => {
+    test('show mode shows the status bar item', () => {
         const internal = manager as unknown as StatusBarManagerTestable;
-        // Disable via config (only when mock is available)
-        const testApi = (vscode as any)._test;
-        if (testApi?.configStore) {
-            testApi.configStore['sentinel.statusBar.enabled'] = false;
-        }
 
         // Cycle to show
         internal.cycleVisibility();
@@ -171,36 +166,11 @@ suite('StatusBarManager', () => {
         assert.strictEqual(internal.item._visible, true);
     });
 
-    // ── sentinel.statusBar.enabled setting ───────────────────
+    // ── Visibility modes ───────────────────
 
-    test('auto mode with enabled=true shows the item', () => {
-        const testApi = (vscode as any)._test;
-        if (testApi?.configStore) {
-            testApi.configStore['sentinel.statusBar.enabled'] = true;
-        }
+    test('auto mode shows the item (defaults to enabled)', () => {
         const internal = manager as unknown as StatusBarManagerTestable;
-        internal.applyEnabledSetting();
-        assert.strictEqual(internal.item._visible, true);
-    });
-
-    test('auto mode with enabled=false hides the item', () => {
-        const testApi = (vscode as any)._test;
-        if (testApi?.configStore) {
-            testApi.configStore['sentinel.statusBar.enabled'] = false;
-        } else {
-            // In integration tests without mock, skip this assertion
-            return;
-        }
-        const internal = manager as unknown as StatusBarManagerTestable;
-        internal.applyEnabledSetting();
-        assert.strictEqual(internal.item._visible, false);
-    });
-
-    test('auto mode defaults to visible when setting is unset', () => {
-        // Default behavior: enabled defaults to true
-        const internal = manager as unknown as StatusBarManagerTestable;
-        assert.strictEqual(internal.visibilityMode, 'auto');
-        internal.applyEnabledSetting();
+        internal.applyVisibility();
         assert.strictEqual(internal.item._visible, true);
     });
 

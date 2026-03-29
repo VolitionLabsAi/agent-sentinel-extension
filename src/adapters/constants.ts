@@ -5,7 +5,7 @@
  * All other maps (forward and reverse) should be derived from this.
  *
  * Keys: adapter display names (e.g., "Claude Code")
- * Values: setting IDs matching the `sentinel.harness.default` enum (e.g., "claude-code")
+ * Values: setting-friendly identifiers (e.g., "claude-code")
  */
 export const HARNESS_NAME_TO_SETTING_ID: Record<string, string> = {
     'Claude Code': 'claude-code',

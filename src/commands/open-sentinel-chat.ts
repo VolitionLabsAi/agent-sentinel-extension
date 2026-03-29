@@ -137,17 +137,14 @@ async function resolveAdapter(
 }
 
 /**
- * Read the configured harness preference from VS Code settings.
+ * Read the configured harness preference from sentinel.config.json.
  * Returns the adapter display name if a specific harness is configured,
  * undefined if set to 'auto' or not set.
- *
- * Uses the `sentinel.harness.default` setting (set via sentinel.selectHarness command).
- * The _configManager parameter is accepted for future use when sentinel.config.json
- * gains a harness preference field.
  */
-function getConfiguredHarnessName(_configManager: ConfigManager): string | undefined {
-    const sentinelConfig = vscode.workspace.getConfiguration('sentinel');
-    const harnessSetting = sentinelConfig.get<string>('harness.default', 'auto');
+function getConfiguredHarnessName(configManager: ConfigManager): string | undefined {
+    // Check if a harness preference was stored via selectHarness command
+    const defaultHarness = configManager.getHarnessConfig('_default');
+    const harnessSetting = defaultHarness?.model ?? 'auto';
 
     if (!harnessSetting || harnessSetting === 'auto') {
         return undefined;
