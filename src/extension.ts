@@ -681,8 +681,8 @@ export function activate(context: vscode.ExtensionContext) {
         sessionCorrelator.onActiveSessionChanged((result) => {
             if (liveFeedProvider.getViewMode() === 'active') {
                 liveFeedProvider.setSessionFilter(result?.sessionId);
+                sessionHealthProvider.setSessionFilter(result?.sessionId);
             }
-            sessionHealthProvider.setSessionFilter(result?.sessionId);
             updateSessionContext();
         }),
     );
@@ -717,9 +717,11 @@ export function activate(context: vscode.ExtensionContext) {
             liveFeedProvider.setViewMode(mode);
             if (mode === 'all') {
                 liveFeedProvider.setSessionFilter(undefined);
+                sessionHealthProvider.setSessionFilter(undefined);
             } else if (mode === 'active') {
                 const result = await sessionCorrelator.correlateActiveSession();
                 liveFeedProvider.setSessionFilter(result?.sessionId);
+                sessionHealthProvider.setSessionFilter(result?.sessionId);
             }
         }
 
@@ -751,6 +753,7 @@ export function activate(context: vscode.ExtensionContext) {
         if (picked) {
             liveFeedProvider.setViewMode('pinned');
             liveFeedProvider.setSessionFilter(picked.sessionId);
+            sessionHealthProvider.setSessionFilter(picked.sessionId);
             updateSessionContext();
         }
     });
