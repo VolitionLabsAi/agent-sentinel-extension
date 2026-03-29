@@ -48,7 +48,9 @@ export class SentinelCLI {
             };
         }
 
-        const fullArgs = [...args, '--format', 'json', '--project-dir', projectDir];
+        const fullArgs = binary.endsWith('vl')
+            ? ['sentinel', ...args, '--format', 'json', '--project-dir', projectDir]
+            : [...args, '--format', 'json', '--project-dir', projectDir];
 
         return new Promise<CLIResult>((resolve) => {
             cp.execFile(

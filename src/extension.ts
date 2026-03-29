@@ -54,6 +54,9 @@ export async function tryAutoStart(cli: SentinelCLI, folder: vscode.WorkspaceFol
         return;
     }
     console.log('[Agent Sentinel] Auto-starting sentinel monitoring...');
+    // TODO: Pass session ID to avoid mtime-based session discovery in the CLI.
+    // The SessionCorrelator is not available at autoStart time (created later in activate()).
+    // For now, the CLI falls back to mtime-based discovery.
     const result = await cli.execSentinel(['start'], folder.uri.fsPath);
     if (result.exitCode === 0) {
         console.log('[Agent Sentinel] Sentinel auto-started successfully');
@@ -65,6 +68,9 @@ export async function tryAutoStart(cli: SentinelCLI, folder: vscode.WorkspaceFol
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('[Agent Sentinel] Activation started');
+
+    // Late-bound reference so sentinel.start command can use the correlator
+    let sessionCorrelatorRef: import('./correlation/session-correlator.js').SessionCorrelator | undefined;
 
     // Set extension URI for file-based severity icons
     setExtensionUri(context.extensionUri);
@@ -106,7 +112,11 @@ export function activate(context: vscode.ExtensionContext) {
                 void vscode.window.showWarningMessage('Sentinel: No sentinel config found in this workspace. Run "Sentinel: Initialize Configuration" first.');
                 return;
             }
-            const result = await cli.execSentinel(['start'], folder.uri.fsPath);
+            const sessionId = sessionCorrelatorRef?.getCurrentSession()?.sessionId;
+            const startArgs = sessionId
+                ? ['start', '--session-id', sessionId]
+                : ['start'];
+            const result = await cli.execSentinel(startArgs, folder.uri.fsPath);
             if (result.exitCode === 0) {
                 void vscode.window.showInformationMessage('Sentinel monitoring started.');
             } else {
@@ -687,6 +697,7 @@ export function activate(context: vscode.ExtensionContext) {
     // --- Session Correlator ---
 
     const sessionCorrelator = new SessionCorrelator(stateManager, adapterRegistry);
+    sessionCorrelatorRef = sessionCorrelator;
     context.subscriptions.push(sessionCorrelator);
 
     // --- P1-08: Multi-Session View Modes ---
