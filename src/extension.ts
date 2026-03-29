@@ -637,7 +637,7 @@ export function activate(context: vscode.ExtensionContext) {
         ),
     );
 
-    // --- About Footer Webview ---
+    // --- Header Panel Webview ---
 
     const aboutProvider = new AboutProvider(context.extensionUri);
     context.subscriptions.push(
@@ -687,31 +687,16 @@ export function activate(context: vscode.ExtensionContext) {
             case 'all':
                 statusBar.setSessionContext('All');
                 break;
-            case 'recent': {
-                const result = sessionCorrelator.getCurrentSession();
-                if (result) {
-                    resolveSessionTitle(result.sessionId, stateManager, sessionCorrelator).then((title) => {
-                        if (title) {
-                            const truncated = title.length > 30 ? title.slice(0, 27) + '...' : title;
-                            statusBar.setSessionContext(`Recent: ${truncated}`);
-                        } else {
-                            statusBar.setSessionContext(`Recent: ${result.sessionId.slice(0, 8)}`);
-                        }
-                    }).catch(() => {
-                        statusBar.setSessionContext(`Recent: ${result.sessionId.slice(0, 8)}`);
-                    });
-                } else {
-                    statusBar.setSessionContext('Recent');
-                }
+            case 'recent':
+                statusBar.setSessionContext('Recent');
                 break;
-            }
-            case 'pinned': {
-                const filter = liveFeedProvider.getSessionFilter();
-                const shortId = filter ? filter.slice(0, 8) : undefined;
-                statusBar.setSessionContext(shortId ? `Pinned: ${shortId}` : 'Pinned');
+            case 'pinned':
+                statusBar.setSessionContext('Pinned');
                 break;
-            }
         }
+
+        // Update the header panel with detailed filter info
+        aboutProvider.updateFilterState(mode, liveFeedProvider, sessionCorrelator, stateManager);
     }
 
     // Subscribe to active session changes → update filter when in 'active' mode
