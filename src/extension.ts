@@ -43,6 +43,26 @@ function sentinelPaths(folder: vscode.WorkspaceFolder) {
     };
 }
 
+/**
+ * Auto-start sentinel monitoring if the config file exists.
+ * Extracted for testability.
+ */
+export async function tryAutoStart(cli: SentinelCLI, folder: vscode.WorkspaceFolder): Promise<void> {
+    const configPath = sentinelPaths(folder).config;
+    if (!fs.existsSync(configPath)) {
+        console.log('[Agent Sentinel] autoStart enabled but no sentinel config found');
+        return;
+    }
+    console.log('[Agent Sentinel] Auto-starting sentinel monitoring...');
+    const result = await cli.execSentinel(['start'], folder.uri.fsPath);
+    if (result.exitCode === 0) {
+        console.log('[Agent Sentinel] Sentinel auto-started successfully');
+        void vscode.window.showInformationMessage('Sentinel auto-started');
+    } else {
+        console.warn(`[Agent Sentinel] Sentinel auto-start failed (exit ${result.exitCode}): ${result.stderr}`);
+    }
+}
+
 export function activate(context: vscode.ExtensionContext) {
     console.log('[Agent Sentinel] Activation started');
 
@@ -81,7 +101,7 @@ export function activate(context: vscode.ExtensionContext) {
                 void vscode.window.showErrorMessage('Sentinel: No workspace folder open.');
                 return;
             }
-            const configPath = path.join(folder.uri.fsPath, '.volition', 'sentinel', 'sentinel.config.json');
+            const configPath = sentinelPaths(folder).config;
             if (!fs.existsSync(configPath)) {
                 void vscode.window.showWarningMessage('Sentinel: No sentinel config found in this workspace. Run "Sentinel: Initialize Configuration" first.');
                 return;
@@ -141,22 +161,9 @@ export function activate(context: vscode.ExtensionContext) {
     if (autoStart) {
         const folder = vscode.workspace.workspaceFolders?.[0];
         if (folder) {
-            const configPath = path.join(folder.uri.fsPath, '.volition', 'sentinel', 'sentinel.config.json');
-            if (fs.existsSync(configPath)) {
-                console.log('[Agent Sentinel] Auto-starting sentinel monitoring...');
-                cli.execSentinel(['start'], folder.uri.fsPath).then((result) => {
-                    if (result.exitCode === 0) {
-                        console.log('[Agent Sentinel] Sentinel auto-started successfully');
-                        void vscode.window.showInformationMessage('Sentinel auto-started');
-                    } else {
-                        console.warn(`[Agent Sentinel] Sentinel auto-start failed (exit ${result.exitCode}): ${result.stderr}`);
-                    }
-                }).catch((err) => {
-                    console.warn('[Agent Sentinel] Sentinel auto-start error:', err);
-                });
-            } else {
-                console.log('[Agent Sentinel] autoStart enabled but no sentinel config found');
-            }
+            tryAutoStart(cli, folder).catch((err) => {
+                console.warn('[Agent Sentinel] Sentinel auto-start error:', err);
+            });
         }
     }
 

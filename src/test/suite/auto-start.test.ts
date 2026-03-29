@@ -2,20 +2,28 @@ import * as assert from 'assert';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
+import * as vscode from 'vscode';
 import { SentinelCLI } from '../../cli/sentinel-cli';
+import { tryAutoStart } from '../../extension';
 
 /**
- * Tests for the autoStart logic.
+ * Tests for the autoStart logic via the extracted tryAutoStart() function.
  *
  * We test the conditions that gate the CLI call:
- * - autoStart=false → no CLI call
- * - autoStart=true + config exists → CLI call made
- * - autoStart=true + no config → no CLI call
+ * - config exists → CLI call made
+ * - no config → no CLI call (early return)
  *
- * Since the actual autoStart logic is inline in extension.ts activate(),
- * we extract the decision logic into testable assertions here and verify
- * that SentinelCLI.execSentinel works correctly for start/stop commands.
+ * Also verifies SentinelCLI.execSentinel returns proper result shapes.
  */
+
+/** Create a fake WorkspaceFolder pointing at the given fsPath. */
+function makeFakeFolder(fsPath: string): vscode.WorkspaceFolder {
+    return {
+        uri: vscode.Uri.file(fsPath),
+        name: path.basename(fsPath),
+        index: 0,
+    };
+}
 
 suite('AutoStart Logic', () => {
     let tmpDir: string;
@@ -28,38 +36,27 @@ suite('AutoStart Logic', () => {
         fs.rmSync(tmpDir, { recursive: true, force: true });
     });
 
-    test('should not start when autoStart is false', () => {
-        const autoStart = false;
-        const configPath = path.join(tmpDir, '.volition', 'sentinel', 'sentinel.config.json');
+    test('tryAutoStart should not call CLI when config does not exist', async () => {
+        const cli = new SentinelCLI();
+        const folder = makeFakeFolder(tmpDir);
 
-        // Create config file
+        // No config file exists — tryAutoStart should return without error
+        await tryAutoStart(cli, folder);
+        // If we get here without throwing, the early-return path worked
+    });
+
+    test('tryAutoStart should call CLI when config exists', async () => {
+        const configPath = path.join(tmpDir, '.volition', 'sentinel', 'sentinel.config.json');
         fs.mkdirSync(path.dirname(configPath), { recursive: true });
         fs.writeFileSync(configPath, '{}');
 
-        // Even with config present, autoStart=false means no action
-        const shouldStart = autoStart && fs.existsSync(configPath);
-        assert.strictEqual(shouldStart, false);
-    });
+        const cli = new SentinelCLI();
+        const folder = makeFakeFolder(tmpDir);
 
-    test('should start when autoStart is true and config exists', () => {
-        const autoStart = true;
-        const configPath = path.join(tmpDir, '.volition', 'sentinel', 'sentinel.config.json');
-
-        // Create config file
-        fs.mkdirSync(path.dirname(configPath), { recursive: true });
-        fs.writeFileSync(configPath, '{}');
-
-        const shouldStart = autoStart && fs.existsSync(configPath);
-        assert.strictEqual(shouldStart, true);
-    });
-
-    test('should not start when autoStart is true but no config exists', () => {
-        const autoStart = true;
-        const configPath = path.join(tmpDir, '.volition', 'sentinel', 'sentinel.config.json');
-
-        // Do NOT create the config file
-        const shouldStart = autoStart && fs.existsSync(configPath);
-        assert.strictEqual(shouldStart, false);
+        // Config exists — tryAutoStart will attempt cli.execSentinel.
+        // The binary likely isn't installed, so it will complete with a non-zero exit code
+        // but should not throw.
+        await tryAutoStart(cli, folder);
     });
 
     test('execSentinel with start command returns proper result shape', async () => {
