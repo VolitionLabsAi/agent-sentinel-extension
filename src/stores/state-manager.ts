@@ -24,6 +24,8 @@ export interface SentinelSessionInfo {
     parentSessionId: string;
     /** When the sentinel started */
     startedAt?: string;
+    /** When the sentinel last fired or checked */
+    lastCheckedAt?: string;
 }
 
 /**
@@ -220,7 +222,13 @@ export class StateManager implements vscode.Disposable {
      * its own session ID, and the parent session it monitors.
      */
     getSentinelSessions(): SentinelSessionInfo[] {
-        return [...this.sentinelSessions.values()];
+        const STALENESS_MS = 24 * 60 * 60 * 1000; // 24 hours
+        const now = Date.now();
+        return [...this.sentinelSessions.values()].filter(s => {
+            const lastActive = s.lastCheckedAt ?? s.startedAt;
+            if (!lastActive) return false;
+            return (now - new Date(lastActive).getTime()) < STALENESS_MS;
+        });
     }
 
     private async readStateFile(folderKey: string, filePath: string): Promise<void> {
@@ -286,6 +294,7 @@ export class StateManager implements vscode.Disposable {
                 sentinelSessionId: sentinel.sentinel_session_id,
                 parentSessionId,
                 startedAt: sentinel.started_at,
+                lastCheckedAt: (sentinel.last_checked_at as string) ?? (sentinel.last_fired_at as string) ?? sentinel.started_at,
             });
         }
     }

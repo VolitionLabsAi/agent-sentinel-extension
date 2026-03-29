@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import { StateManager } from '../stores/state-manager.js';
 import { HarnessAdapterRegistry } from '../adapters/adapter-registry.js';
+import { Debouncer } from '../utils/debouncer.js';
 
 export type CorrelationConfidence = 'high' | 'medium' | 'low';
 
@@ -54,9 +55,13 @@ export class SessionCorrelator implements vscode.Disposable {
     ) {
         this.disposables.push(this._onActiveSessionChanged);
 
-        // Listen to tab changes
-        const tabChangeDisposable = vscode.window.tabGroups.onDidChangeTabs(() => {
+        const correlationDebouncer = new Debouncer(() => {
             void this.onTabsChanged();
+        }, 500);
+        this.disposables.push(correlationDebouncer);
+
+        const tabChangeDisposable = vscode.window.tabGroups.onDidChangeTabs(() => {
+            correlationDebouncer.trigger();
         });
         this.disposables.push(tabChangeDisposable);
     }

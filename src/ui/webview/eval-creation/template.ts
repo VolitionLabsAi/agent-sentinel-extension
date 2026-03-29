@@ -312,12 +312,33 @@ export function buildEvalCreationHtml(nonce: string): string {
 
                 if (msg.type === 'saved') {
                     setStatus('Saved to ' + msg.filePath, 'success');
+                    setTimeout(function() {
+                        showStep('input');
+                        descriptionEl.value = '';
+                        btnGenerate.disabled = true;
+                        currentYaml = '';
+                        currentFilePath = '';
+                    }, 2000);
                 }
 
                 if (msg.type === 'loading') {
                     setStatus('Generating...', 'loading');
                 }
+
+                if (msg.type === 'reset') {
+                    showStep('input');
+                    descriptionEl.value = '';
+                    domainEl.value = 'GEN';
+                    severityEl.value = 'warning';
+                    btnGenerate.disabled = true;
+                    setStatus('', '');
+                    currentYaml = '';
+                    currentFilePath = '';
+                }
             });
+
+            // Force Step 1 on every load — prevents stale Step 2 from cached webview state
+            showStep('input');
         })();
     </script>
 </body>

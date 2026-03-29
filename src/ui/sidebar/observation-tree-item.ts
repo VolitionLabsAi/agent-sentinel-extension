@@ -1,16 +1,26 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { PersistentObservation } from '../../types/observation.js';
 
 /**
- * Severity metadata: icon name (codicon), ThemeColor id, and accessible label.
+ * Severity metadata: SVG icon filename and accessible label.
+ * Uses file-based SVGs so colors persist on list selection/focus
+ * (ThemeIcon colors get overridden by VS Code's selection foreground).
  */
-const SEVERITY_META: Record<string, { icon: string; color: string; label: string }> = {
-    critical: { icon: 'circle-filled', color: 'charts.red', label: 'CRITICAL' },
-    warning: { icon: 'circle-filled', color: 'charts.orange', label: 'WARNING' },
-    info: { icon: 'circle-filled', color: 'charts.blue', label: 'INFO' },
+const SEVERITY_META: Record<string, { iconFile: string; label: string }> = {
+    critical: { iconFile: 'severity-critical.svg', label: 'CRITICAL' },
+    warning: { iconFile: 'severity-warning.svg', label: 'WARNING' },
+    info: { iconFile: 'severity-info.svg', label: 'INFO' },
 };
 
-const STATUS_META = { icon: 'circle-filled', color: 'charts.green', label: 'STATUS' };
+const STATUS_META = { iconFile: 'severity-status.svg', label: 'STATUS' };
+
+let extensionUri: vscode.Uri | undefined;
+
+/** Call once during activation to set the extension root for icon paths. */
+export function setExtensionUri(uri: vscode.Uri): void {
+    extensionUri = uri;
+}
 
 /**
  * Format a timestamp as a relative string (e.g., '2m ago').
@@ -35,21 +45,25 @@ export class ObservationTreeItem extends vscode.TreeItem {
         const badge = observation.hook_type === 'pre' ? 'PREVENTED' : 'OBSERVED';
         const meta = SEVERITY_META[observation.severity] ?? STATUS_META;
 
-        // Label includes severity text for accessibility (not color alone)
-        const label = `[${meta.label}] ${observation.eval_id} — ${observation.one_liner}`;
+        // Severity conveyed by colored icon; eval_id + one_liner get full width
+        const label = `${observation.eval_id}: ${observation.one_liner}`;
 
         super(label, vscode.TreeItemCollapsibleState.Collapsed);
 
         this.description = `${relativeTime(observation.timestamp)}  ${badge}`;
-        this.iconPath = new vscode.ThemeIcon(meta.icon, new vscode.ThemeColor(meta.color));
+        if (extensionUri) {
+            this.iconPath = vscode.Uri.joinPath(extensionUri, 'media', 'icons', meta.iconFile);
+        }
         this.contextValue = `observation.${observation.severity}`;
 
         // P1-14: Clickable observation → navigate to Claude Code session
-        this.command = {
-            command: 'sentinel.navigateToSession',
-            title: 'Navigate to Session',
-            arguments: [observation.session_id],
-        };
+        if (observation.session_id) {
+            this.command = {
+                command: 'sentinel.navigateToSession',
+                title: 'Navigate to Session',
+                arguments: [observation.session_id],
+            };
+        }
 
         this.tooltip = new vscode.MarkdownString(
             [

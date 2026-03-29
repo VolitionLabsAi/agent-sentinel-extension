@@ -53,17 +53,28 @@ interface StatusBarManagerTestable {
 suite('StatusBarManager', () => {
     let manager: StatusBarManager;
 
-    setup(() => {
-        // Reset config store to defaults
-        const store = vscodeMock._test.configStore;
-        for (const key of Object.keys(store)) {
-            delete store[key];
+    setup(function () {
+        // These tests require the vscode mock — StatusBarManager registers
+        // commands that conflict with the already-activated extension in the
+        // real VS Code host. Skip the entire suite in integration mode.
+        if (!(vscode as any)._test) {
+            this.skip();
+            return;
+        }
+
+        // Reset config store when running with mock (unit tests).
+        const testApi = (vscode as any)._test;
+        if (testApi?.configStore) {
+            const store = testApi.configStore;
+            for (const key of Object.keys(store)) {
+                delete store[key];
+            }
         }
         manager = new StatusBarManager(createMockContext());
     });
 
     teardown(() => {
-        manager.dispose();
+        manager?.dispose();
     });
 
     // ── Health state icon and color mapping ───────────────────
@@ -148,8 +159,11 @@ suite('StatusBarManager', () => {
 
     test('show mode shows the status bar item regardless of setting', () => {
         const internal = manager as unknown as StatusBarManagerTestable;
-        // Disable via config
-        vscodeMock._test.configStore['sentinel.statusBar.enabled'] = false;
+        // Disable via config (only when mock is available)
+        const testApi = (vscode as any)._test;
+        if (testApi?.configStore) {
+            testApi.configStore['sentinel.statusBar.enabled'] = false;
+        }
 
         // Cycle to show
         internal.cycleVisibility();
@@ -160,14 +174,23 @@ suite('StatusBarManager', () => {
     // ── sentinel.statusBar.enabled setting ───────────────────
 
     test('auto mode with enabled=true shows the item', () => {
-        vscodeMock._test.configStore['sentinel.statusBar.enabled'] = true;
+        const testApi = (vscode as any)._test;
+        if (testApi?.configStore) {
+            testApi.configStore['sentinel.statusBar.enabled'] = true;
+        }
         const internal = manager as unknown as StatusBarManagerTestable;
         internal.applyEnabledSetting();
         assert.strictEqual(internal.item._visible, true);
     });
 
     test('auto mode with enabled=false hides the item', () => {
-        vscodeMock._test.configStore['sentinel.statusBar.enabled'] = false;
+        const testApi = (vscode as any)._test;
+        if (testApi?.configStore) {
+            testApi.configStore['sentinel.statusBar.enabled'] = false;
+        } else {
+            // In integration tests without mock, skip this assertion
+            return;
+        }
         const internal = manager as unknown as StatusBarManagerTestable;
         internal.applyEnabledSetting();
         assert.strictEqual(internal.item._visible, false);

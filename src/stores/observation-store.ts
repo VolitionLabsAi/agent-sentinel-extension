@@ -2,6 +2,22 @@ import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import { PersistentObservation } from '../types/observation';
 
+/**
+ * Normalize severity from CLI output (CRITICAL/HIGH/MEDIUM/LOW)
+ * to extension values (critical/warning/info).
+ */
+function normalizeSeverity(raw: string): 'critical' | 'warning' | 'info' {
+    switch (raw.toUpperCase()) {
+        case 'CRITICAL': return 'critical';
+        case 'HIGH': return 'warning';
+        case 'WARNING': return 'warning';
+        case 'MEDIUM': return 'info';
+        case 'INFO': return 'info';
+        case 'LOW': return 'info';
+        default: return 'info';
+    }
+}
+
 export interface ObservationFilter {
     sessionId?: string;
     severity?: string;
@@ -34,7 +50,7 @@ interface HistoryCache {
 }
 
 /** How long (ms) to cache historical disk reads to avoid re-reading on rapid scrolling. */
-const HISTORY_CACHE_TTL_MS = 5000;
+const HISTORY_CACHE_TTL_MS = 30_000;
 
 export class ObservationStore implements vscode.Disposable {
     private observations: Map<string, PersistentObservation[]> = new Map();
@@ -46,6 +62,9 @@ export class ObservationStore implements vscode.Disposable {
 
     /** Brief cache for disk reads keyed by `${sessionId}:${beforeIndex}:${limit}`. */
     private readonly historyCache: Map<string, HistoryCache> = new Map();
+
+    /** Per-session cache of ALL observations from disk (append-only, so safe to cache aggressively). */
+    private readonly sessionDiskCache: Map<string, { observations: PersistentObservation[]; timestamp: number }> = new Map();
 
     private readonly _onObservationReceived = new vscode.EventEmitter<PersistentObservation>();
     public readonly onObservationReceived: vscode.Event<PersistentObservation> = this._onObservationReceived.event;
@@ -89,6 +108,7 @@ export class ObservationStore implements vscode.Disposable {
         this.observations.clear();
         this.sessionHistory.clear();
         this.historyCache.clear();
+        this.sessionDiskCache.clear();
         for (const state of this.folders.values()) {
             state.byteOffset = 0;
         }
@@ -130,6 +150,7 @@ export class ObservationStore implements vscode.Disposable {
             folderState.byteOffset = 0;
             this.sessionHistory.clear();
             this.historyCache.clear();
+            this.sessionDiskCache.clear();
             await this.readNewLines(folderState);
             return;
         }
@@ -169,6 +190,7 @@ export class ObservationStore implements vscode.Disposable {
                 }
                 try {
                     const obs = JSON.parse(trimmed) as PersistentObservation;
+                    obs.severity = normalizeSeverity(obs.severity);
                     this.addObservation(obs);
                     this._onObservationReceived.fire(obs);
                 } catch {
@@ -270,8 +292,15 @@ export class ObservationStore implements vscode.Disposable {
             return cached.observations;
         }
 
-        // Read all observations for this session from all JSONL files on disk
-        const allFromDisk = await this.readAllFromDisk(sessionId);
+        // Check per-session disk cache (observations are append-only, so cache aggressively)
+        let allFromDisk: PersistentObservation[];
+        const sessionCached = this.sessionDiskCache.get(sessionId);
+        if (sessionCached && (Date.now() - sessionCached.timestamp) < HISTORY_CACHE_TTL_MS) {
+            allFromDisk = sessionCached.observations;
+        } else {
+            allFromDisk = await this.readAllFromDisk(sessionId);
+            this.sessionDiskCache.set(sessionId, { observations: allFromDisk, timestamp: Date.now() });
+        }
 
         // allFromDisk is in chronological order (oldest first, as written to JSONL).
         // We want observations with index < beforeIndex, newest first.
@@ -339,6 +368,7 @@ export class ObservationStore implements vscode.Disposable {
                         }
                         try {
                             const obs = JSON.parse(trimmed) as PersistentObservation;
+                            obs.severity = normalizeSeverity(obs.severity);
                             if (obs.session_id === sessionId) {
                                 results.push(obs);
                             }
@@ -352,6 +382,7 @@ export class ObservationStore implements vscode.Disposable {
                 if (remainder.trim().length > 0) {
                     try {
                         const obs = JSON.parse(remainder.trim()) as PersistentObservation;
+                        obs.severity = normalizeSeverity(obs.severity);
                         if (obs.session_id === sessionId) {
                             results.push(obs);
                         }
@@ -375,6 +406,7 @@ export class ObservationStore implements vscode.Disposable {
     clearSession(sessionId: string): void {
         this.observations.delete(sessionId);
         this.sessionHistory.delete(sessionId);
+        this.sessionDiskCache.delete(sessionId);
         // Invalidate any cached history for this session
         for (const key of this.historyCache.keys()) {
             if (key.startsWith(`${sessionId}:`)) {
@@ -389,5 +421,6 @@ export class ObservationStore implements vscode.Disposable {
         this.folders.clear();
         this.sessionHistory.clear();
         this.historyCache.clear();
+        this.sessionDiskCache.clear();
     }
 }

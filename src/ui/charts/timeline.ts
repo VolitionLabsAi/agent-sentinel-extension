@@ -1,4 +1,5 @@
 import type { TimelinePoint, TimelineConfig } from '../../types/health-metrics.js';
+import { findMinMax } from '../../utils/math.js';
 
 const DEFAULTS: Required<TimelineConfig> = {
     width: 280,
@@ -34,8 +35,7 @@ export function renderTimeline(points: TimelinePoint[], config?: TimelineConfig)
 
     // Time range
     const timestamps = points.map(p => new Date(p.timestamp).getTime());
-    const minTime = Math.min(...timestamps);
-    const maxTime = Math.max(...timestamps);
+    const [minTime, maxTime] = findMinMax(timestamps);
     const timeRange = maxTime - minTime || 1;
 
     // Severity -> y position (critical at top, warning middle, info bottom)

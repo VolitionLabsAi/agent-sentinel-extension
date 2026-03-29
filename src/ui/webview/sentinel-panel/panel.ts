@@ -15,6 +15,7 @@ import { StateManager } from '../../../stores/state-manager.js';
 import { ConfigManager } from '../../../stores/config-manager.js';
 import { HarnessAdapterRegistry } from '../../../adapters/adapter-registry.js';
 import { writeSteeringInstruction } from '../../../commands/steer-sentinel.js';
+import { findMin } from '../../../utils/math.js';
 
 /** Quick message stored in-memory for display in the panel. */
 export interface QuickMessage {
@@ -28,6 +29,7 @@ export interface QuickMessage {
  */
 export class SentinelConversationPanel implements vscode.WebviewViewProvider, vscode.Disposable {
     public static readonly viewType = 'sentinel.conversationPanel';
+    private static readonly MAX_QUICK_MESSAGES = 100;
 
     private view: vscode.WebviewView | undefined;
     private readonly disposables: vscode.Disposable[] = [];
@@ -123,7 +125,7 @@ export class SentinelConversationPanel implements vscode.WebviewViewProvider, vs
                 .filter(s => s.startedAt)
                 .map(s => new Date(s.startedAt!).getTime());
             if (starts.length > 0) {
-                const earliest = Math.min(...starts);
+                const earliest = findMin(starts);
                 durationMs = Date.now() - earliest;
             }
         }
@@ -156,6 +158,9 @@ export class SentinelConversationPanel implements vscode.WebviewViewProvider, vs
                         timestamp: new Date().toISOString(),
                     };
                     this.quickMessages.push(quickMsg);
+                    if (this.quickMessages.length > SentinelConversationPanel.MAX_QUICK_MESSAGES) {
+                        this.quickMessages.shift();
+                    }
 
                     // Persist to steering JSONL for sentinel consumption
                     const sessions = this.stateManager.getSentinelSessions();

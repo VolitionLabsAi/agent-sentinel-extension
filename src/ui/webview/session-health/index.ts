@@ -89,7 +89,10 @@ export function getSessionHealthHtml(nonce: string, cspSource: string): string {
                 rateEl.className = 'metric-value ' + (rate === 0 ? 'rate-ok' : rate < 20 ? 'rate-warn' : 'rate-critical');
 
                 document.getElementById('dynamic-rules').textContent = String(data.summary.dynamicRulesCount);
-                document.getElementById('avg-duration').textContent = Math.round(data.summary.avgDurationMs) + 'ms';
+                const ms = data.summary.avgDurationMs;
+                document.getElementById('avg-duration').textContent = ms >= 1000
+                    ? (ms / 1000).toFixed(1) + 's'
+                    : Math.round(ms) + 'ms';
 
                 // Update charts (pre-rendered SVG from provider)
                 if (data.sparklineSvg) {

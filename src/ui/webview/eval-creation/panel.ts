@@ -30,17 +30,19 @@ export class EvalCreationPanel {
      */
     show(projectDir: string): void {
         if (this.panel) {
-            this.panel.reveal(vscode.ViewColumn.One);
+            this.panel.reveal(vscode.ViewColumn.One, true);
+            // Reset the webview HTML to clear stale Step 2 state
+            const nonce = crypto.randomBytes(16).toString('hex');
+            this.panel.webview.html = buildEvalCreationHtml(nonce);
             return;
         }
 
         this.panel = vscode.window.createWebviewPanel(
             VIEW_TYPE,
             'Create Eval Rule',
-            vscode.ViewColumn.One,
+            { viewColumn: vscode.ViewColumn.One, preserveFocus: true },
             {
                 enableScripts: true,
-                retainContextWhenHidden: true,
                 localResourceRoots: [this.extensionUri],
             },
         );
@@ -116,7 +118,7 @@ export class EvalCreationPanel {
 
             // Open the saved file in the editor
             const doc = await vscode.workspace.openTextDocument(absolutePath);
-            await vscode.window.showTextDocument(doc, { preview: false, viewColumn: vscode.ViewColumn.Beside });
+            await vscode.window.showTextDocument(doc, { preview: false, viewColumn: vscode.ViewColumn.Beside, preserveFocus: true });
 
             // Show a brief notification
             void vscode.window.showInformationMessage(

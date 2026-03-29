@@ -120,27 +120,28 @@ select:focus {
     display: flex;
     gap: 8px;
     margin-top: 16px;
+    margin-bottom: 16px;
 }
 
 button {
-    padding: 6px 14px;
+    padding: 4px 11px;
     font-family: var(--vscode-font-family, system-ui, -apple-system, sans-serif);
     font-size: var(--vscode-font-size, 13px);
-    font-weight: 600;
-    border: none;
-    border-radius: 4px;
+    border: 1px solid transparent;
+    border-radius: 2px;
     cursor: pointer;
-    transition: opacity var(--transition-speed) ease;
+    line-height: 18px;
 }
 
 button:disabled {
-    opacity: 0.5;
+    opacity: 0.4;
     cursor: not-allowed;
 }
 
 button.primary {
     color: var(--vscode-button-foreground, #fff);
     background: var(--vscode-button-background, #0e639c);
+    border-color: var(--vscode-button-border, transparent);
 }
 
 button.primary:hover:not(:disabled) {
@@ -150,6 +151,7 @@ button.primary:hover:not(:disabled) {
 button.secondary {
     color: var(--vscode-button-secondaryForeground, var(--vscode-editor-foreground));
     background: var(--vscode-button-secondaryBackground, #3a3d41);
+    border-color: var(--vscode-button-secondaryBackground, #3a3d41);
 }
 
 button.secondary:hover:not(:disabled) {

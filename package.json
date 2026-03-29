@@ -73,6 +73,11 @@
         "title": "Sentinel: Initialize Configuration"
       },
       {
+        "command": "sentinel.openSettings",
+        "title": "Sentinel: Open Settings",
+        "icon": "$(gear)"
+      },
+      {
         "command": "sentinel.toggleEvalRule",
         "title": "Sentinel: Toggle Eval Rule"
       },
@@ -120,15 +125,22 @@
       {
         "command": "sentinel.exportEval",
         "title": "Sentinel: Export Eval",
-        "icon": "$(export)"
+        "icon": "$(cloud-upload)"
       },
       {
         "command": "sentinel.importEval",
         "title": "Sentinel: Import Eval",
-        "icon": "$(import)"
+        "icon": "$(cloud-download)"
       }
     ],
     "menus": {
+      "viewContainer/title": [
+        {
+          "command": "sentinel.openSettings",
+          "when": "viewContainer == sentinel",
+          "group": "navigation"
+        }
+      ],
       "view/title": [
         {
           "command": "sentinel.setViewMode",
@@ -212,6 +224,12 @@
           "id": "sentinel.conversationPanel",
           "name": "Sentinel Chat",
           "type": "webview"
+        },
+        {
+          "id": "sentinel.about",
+          "name": "About",
+          "type": "webview",
+          "visibility": "visible"
         }
       ]
     },

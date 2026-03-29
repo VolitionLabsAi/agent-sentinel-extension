@@ -4,8 +4,10 @@ import { ObservationStore } from '../../stores/observation-store.js';
 import { StateManager } from '../../stores/state-manager.js';
 import type { HealthViewData, TimelinePoint } from '../../types/health-metrics.js';
 import { getSessionHealthHtml, renderHealthCharts } from '../webview/session-health/index.js';
+import { Debouncer } from '../../utils/debouncer.js';
 
 const SPARKLINE_WINDOW = 20;
+const MAX_CHART_POINTS = 200;
 
 /**
  * WebviewViewProvider for the Session Health panel.
@@ -20,11 +22,14 @@ export class SessionHealthProvider implements vscode.WebviewViewProvider, vscode
     private view: vscode.WebviewView | undefined;
     private readonly disposables: vscode.Disposable[] = [];
     private sessionFilter: string | undefined;
+    private readonly updateDebouncer: Debouncer;
 
     constructor(
         private readonly store: ObservationStore,
         private readonly stateManager: StateManager,
     ) {
+        this.updateDebouncer = new Debouncer(() => this.doUpdate(), 500);
+
         // Re-render when new observations arrive
         this.disposables.push(
             store.onObservationReceived(() => this.update()),
@@ -63,9 +68,28 @@ export class SessionHealthProvider implements vscode.WebviewViewProvider, vscode
     }
 
     /**
-     * Compute metrics from the observation store and push to the webview.
+     * Debounced entry point — batches rapid observation arrivals.
      */
     private update(): void {
+        if (!this.view?.visible) {
+            return;
+        }
+        this.updateDebouncer.trigger();
+    }
+
+    /**
+     * Downsample an array to at most maxPoints entries, preserving first and last.
+     */
+    private static downsample<T>(data: T[], maxPoints: number): T[] {
+        if (data.length <= maxPoints) return data;
+        const step = Math.ceil(data.length / maxPoints);
+        return data.filter((_, i) => i % step === 0 || i === data.length - 1);
+    }
+
+    /**
+     * Compute metrics from the observation store and push to the webview.
+     */
+    private doUpdate(): void {
         if (!this.view?.visible) {
             return;
         }
@@ -76,21 +100,33 @@ export class SessionHealthProvider implements vscode.WebviewViewProvider, vscode
 
         const evalCount = observations.length;
 
-        // Failure = critical or warning
-        const failures = observations.filter(o => o.severity === 'critical' || o.severity === 'warning').length;
+        // Single pass for severity counts and duration sum
+        let failures = 0;
+        let critical = 0;
+        let warning = 0;
+        let info = 0;
+        let dynamicRulesCount = 0;
+        let totalDuration = 0;
+        for (const o of observations) {
+            totalDuration += o.duration_ms;
+            if (o.dynamic_eval_created) dynamicRulesCount++;
+            switch (o.severity) {
+                case 'critical':
+                    critical++;
+                    failures++;
+                    break;
+                case 'warning':
+                    warning++;
+                    failures++;
+                    break;
+                case 'info':
+                    info++;
+                    break;
+            }
+        }
+
         const failureRate = evalCount > 0 ? (failures / evalCount) * 100 : 0;
-
-        // Dynamic rules
-        const dynamicRulesCount = observations.filter(o => o.dynamic_eval_created).length;
-
-        // Average duration
-        const totalDuration = observations.reduce((sum, o) => sum + o.duration_ms, 0);
         const avgDurationMs = evalCount > 0 ? totalDuration / evalCount : 0;
-
-        // Severity distribution
-        const critical = observations.filter(o => o.severity === 'critical').length;
-        const warning = observations.filter(o => o.severity === 'warning').length;
-        const info = observations.filter(o => o.severity === 'info').length;
 
         // Latency trend (last N observations, chronological order)
         const sorted = [...observations].sort(
@@ -98,12 +134,13 @@ export class SessionHealthProvider implements vscode.WebviewViewProvider, vscode
         );
         const latencyTrend = sorted.slice(-SPARKLINE_WINDOW).map(o => o.duration_ms);
 
-        // Timeline points
-        const timeline: TimelinePoint[] = sorted.map(o => ({
+        // Timeline points — downsample for chart rendering
+        const timelineAll: TimelinePoint[] = sorted.map(o => ({
             timestamp: o.timestamp,
             severity: o.severity,
             evalId: o.eval_id,
         }));
+        const timeline = SessionHealthProvider.downsample(timelineAll, MAX_CHART_POINTS);
 
         const data: HealthViewData = {
             type: 'healthUpdate',
@@ -125,6 +162,7 @@ export class SessionHealthProvider implements vscode.WebviewViewProvider, vscode
     }
 
     dispose(): void {
+        this.updateDebouncer.dispose();
         for (const d of this.disposables) {
             d.dispose();
         }

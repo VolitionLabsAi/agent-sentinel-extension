@@ -30,6 +30,12 @@ export class EvalRulesProvider implements vscode.TreeDataProvider<EvalTreeItem>,
     /** Session start timestamp for "learned this session" detection. */
     private readonly sessionStartTime: string;
 
+    /** Incrementally-maintained cache of eval hit statistics. */
+    private hitStatsCache: Map<string, { hitCount: number; lastTriggered: string | undefined }> = new Map();
+
+    /** Whether the hit stats cache needs rebuilding before next read. */
+    private hitStatsCacheDirty = true;
+
     constructor(
         private readonly configManager: ConfigManager,
         private readonly observationStore: ObservationStore,
@@ -45,7 +51,10 @@ export class EvalRulesProvider implements vscode.TreeDataProvider<EvalTreeItem>,
 
         // Refresh on new observations (hit counts change)
         this.disposables.push(
-            observationStore.onObservationReceived(() => this.refresh()),
+            observationStore.onObservationReceived(() => {
+                this.hitStatsCacheDirty = true;
+                this.refresh();
+            }),
         );
 
         // Refresh when local evals change
@@ -169,24 +178,37 @@ export class EvalRulesProvider implements vscode.TreeDataProvider<EvalTreeItem>,
     }
 
     /**
-     * Compute hit count and last-triggered timestamp for a rule
-     * by querying the ObservationStore.
+     * Rebuild the hit stats cache in a single pass over all observations.
+     * Called lazily before the first cache read after invalidation.
      */
-    private getHitStats(evalId: string): { hitCount: number; lastTriggered: string | undefined } {
-        const observations = this.observationStore.getObservations({ evalId });
-        if (observations.length === 0) {
-            return { hitCount: 0, lastTriggered: undefined };
-        }
-
-        // Find most recent timestamp
-        let latest = observations[0].timestamp;
-        for (const obs of observations) {
-            if (obs.timestamp > latest) {
-                latest = obs.timestamp;
+    private rebuildHitStatsCache(): void {
+        this.hitStatsCache.clear();
+        const allObservations = this.observationStore.getObservations();
+        for (const obs of allObservations) {
+            const existing = this.hitStatsCache.get(obs.eval_id);
+            if (existing) {
+                existing.hitCount++;
+                if (!existing.lastTriggered || obs.timestamp > existing.lastTriggered) {
+                    existing.lastTriggered = obs.timestamp;
+                }
+            } else {
+                this.hitStatsCache.set(obs.eval_id, {
+                    hitCount: 1,
+                    lastTriggered: obs.timestamp,
+                });
             }
         }
+        this.hitStatsCacheDirty = false;
+    }
 
-        return { hitCount: observations.length, lastTriggered: latest };
+    /**
+     * Look up hit count and last-triggered timestamp for a rule from the cache.
+     */
+    private getHitStats(evalId: string): { hitCount: number; lastTriggered: string | undefined } {
+        if (this.hitStatsCacheDirty) {
+            this.rebuildHitStatsCache();
+        }
+        return this.hitStatsCache.get(evalId) ?? { hitCount: 0, lastTriggered: undefined };
     }
 
     private createEmptyStateItem(): vscode.TreeItem {

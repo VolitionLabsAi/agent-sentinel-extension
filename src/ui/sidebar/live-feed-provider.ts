@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { ObservationStore } from '../../stores/observation-store.js';
 import { PersistentObservation } from '../../types/observation.js';
 import { ObservationTreeItem, ObservationDetailItem } from './observation-tree-item.js';
+import { Debouncer } from '../../utils/debouncer.js';
 
 type FeedItem = ObservationTreeItem | ObservationDetailItem | LoadMoreTreeItem | EndOfHistoryTreeItem;
 
@@ -77,7 +78,16 @@ export class LiveFeedProvider implements vscode.TreeDataProvider<FeedItem>, vsco
      */
     private loadingHistory: Set<string> = new Set();
 
+    /** Cache for shortened session IDs to avoid repeated .slice(0, 8) allocations. */
+    private shortIdCache = new Map<string, string>();
+
+    /** Debouncer to coalesce rapid tree refresh calls. */
+    private readonly refreshDebouncer: Debouncer;
+
     constructor(private readonly store: ObservationStore) {
+        this.refreshDebouncer = new Debouncer(() => {
+            this._onDidChangeTreeData.fire();
+        }, 250);
         this.disposables.push(this._onDidChangeTreeData);
 
         // Auto-refresh when new observations arrive
@@ -163,7 +173,7 @@ export class LiveFeedProvider implements vscode.TreeDataProvider<FeedItem>, vsco
     }
 
     refresh(): void {
-        this._onDidChangeTreeData.fire();
+        this.refreshDebouncer.trigger();
     }
 
     getTreeItem(element: FeedItem): vscode.TreeItem {
@@ -193,21 +203,15 @@ export class LiveFeedProvider implements vscode.TreeDataProvider<FeedItem>, vsco
         const showSessionLabel = this.viewMode === 'all';
         const items: FeedItem[] = [];
 
-        // In-memory observations, newest first
-        const inMemoryItems = observations
-            .slice()
-            .reverse()
-            .map((obs) => {
-                const item = new ObservationTreeItem(obs);
-                if (showSessionLabel) {
-                    // Append short session ID to the description
-                    const shortId = obs.session_id.slice(0, 8);
-                    item.description = `${item.description ?? ''}  \u27E8${shortId}\u27E9`;
-                }
-                return item;
-            });
-
-        items.push(...inMemoryItems);
+        // In-memory observations, newest first (single reverse iteration instead of slice+reverse)
+        for (let i = observations.length - 1; i >= 0; i--) {
+            const obs = observations[i];
+            const item = new ObservationTreeItem(obs);
+            if (showSessionLabel) {
+                item.description = `${item.description ?? ''}  \u27E8${this.getShortId(obs.session_id)}\u27E9`;
+            }
+            items.push(item);
+        }
 
         // Historical observations (loaded from disk), appended after in-memory
         if (this.sessionFilter) {
@@ -215,8 +219,7 @@ export class LiveFeedProvider implements vscode.TreeDataProvider<FeedItem>, vsco
             for (const obs of historical) {
                 const item = new ObservationTreeItem(obs);
                 if (showSessionLabel) {
-                    const shortId = obs.session_id.slice(0, 8);
-                    item.description = `${item.description ?? ''}  \u27E8${shortId}\u27E9`;
+                    item.description = `${item.description ?? ''}  \u27E8${this.getShortId(obs.session_id)}\u27E9`;
                 }
                 items.push(item);
             }
@@ -251,6 +254,15 @@ export class LiveFeedProvider implements vscode.TreeDataProvider<FeedItem>, vsco
         }
 
         return items;
+    }
+
+    private getShortId(sessionId: string): string {
+        let short = this.shortIdCache.get(sessionId);
+        if (!short) {
+            short = sessionId.slice(0, 8);
+            this.shortIdCache.set(sessionId, short);
+        }
+        return short;
     }
 
     private getObservationDetails(parent: ObservationTreeItem): ObservationDetailItem[] {
@@ -303,6 +315,7 @@ export class LiveFeedProvider implements vscode.TreeDataProvider<FeedItem>, vsco
     }
 
     dispose(): void {
+        this.refreshDebouncer.dispose();
         for (const d of this.disposables) {
             d.dispose();
         }
@@ -310,5 +323,6 @@ export class LiveFeedProvider implements vscode.TreeDataProvider<FeedItem>, vsco
         this.historicalObservations.clear();
         this.historyExhausted.clear();
         this.loadingHistory.clear();
+        this.shortIdCache.clear();
     }
 }

@@ -165,6 +165,7 @@ export class ConfigManager implements vscode.Disposable {
     private readonly folders: Map<string, FolderConfig> = new Map();
     private mergedRules: EvalRule[] = [];
     private readonly disposables: vscode.Disposable[] = [];
+    private _isWriting = false;
 
     private readonly _onConfigChanged = new vscode.EventEmitter<void>();
     /** Fires when config or rules change (reload, enable/disable toggle). */
@@ -211,6 +212,7 @@ export class ConfigManager implements vscode.Disposable {
      * Incremental update triggered by file watcher.
      */
     async update(uri?: vscode.Uri): Promise<void> {
+        if (this._isWriting) { return; }
         if (uri) {
             for (const folder of this.folders.values()) {
                 if (uri.fsPath === folder.configPath) {
@@ -267,9 +269,12 @@ export class ConfigManager implements vscode.Disposable {
 
             // Write back to disk
             try {
+                this._isWriting = true;
                 const json = JSON.stringify(folder.config, null, 2) + '\n';
                 await fs.writeFile(folder.configPath, json, 'utf-8');
+                setTimeout(() => { this._isWriting = false; }, 200);
             } catch (err) {
+                this._isWriting = false;
                 console.error(`[ConfigManager] Failed to write config: ${err}`);
                 vscode.window.showErrorMessage(`Failed to update sentinel config: ${err}`);
             }
@@ -415,9 +420,12 @@ export class ConfigManager implements vscode.Disposable {
             }
 
             try {
+                this._isWriting = true;
                 const json = JSON.stringify(folder.config, null, 2) + '\n';
                 await fs.writeFile(folder.configPath, json, 'utf-8');
+                setTimeout(() => { this._isWriting = false; }, 200);
             } catch (err) {
+                this._isWriting = false;
                 console.error(`[ConfigManager] Failed to write harness config: ${err}`);
                 vscode.window.showErrorMessage(`Failed to update harness config: ${err}`);
             }

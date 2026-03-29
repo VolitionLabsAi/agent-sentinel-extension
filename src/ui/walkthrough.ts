@@ -9,13 +9,27 @@ const GLOBAL_STATE_FIRST_INSTALL = 'sentinel.walkthroughShown';
 
 export class WalkthroughManager implements vscode.Disposable {
     private disposables: vscode.Disposable[] = [];
+    private walkthroughTimeout: ReturnType<typeof setTimeout> | undefined;
 
     constructor(private readonly context: vscode.ExtensionContext) {
         // Initial context key evaluation
         void this.refreshAllContextKeys();
+        this.showWalkthroughOnFirstInstall();
+    }
 
-        // Auto-open walkthrough on first install
-        void this.showWalkthroughOnFirstInstall();
+    private showWalkthroughOnFirstInstall(): void {
+        const alreadyShown = this.context.globalState.get<boolean>(GLOBAL_STATE_FIRST_INSTALL, false);
+        if (!alreadyShown) {
+            void this.context.globalState.update(GLOBAL_STATE_FIRST_INSTALL, true);
+            // Delay so the extension finishes activating before opening the walkthrough
+            this.walkthroughTimeout = setTimeout(() => {
+                vscode.commands.executeCommand(
+                    'workbench.action.openWalkthrough',
+                    'volition.agent-sentinel#sentinel-setup',
+                    false,
+                );
+            }, 1500);
+        }
     }
 
     /**
@@ -104,22 +118,10 @@ export class WalkthroughManager implements vscode.Disposable {
         await vscode.commands.executeCommand('setContext', CONTEXT_FIRST_OBSERVATION, false);
     }
 
-    private async showWalkthroughOnFirstInstall(): Promise<void> {
-        const alreadyShown = this.context.globalState.get<boolean>(GLOBAL_STATE_FIRST_INSTALL, false);
-        if (!alreadyShown) {
-            await this.context.globalState.update(GLOBAL_STATE_FIRST_INSTALL, true);
-            // Small delay so the extension finishes activating before opening the walkthrough
-            setTimeout(() => {
-                vscode.commands.executeCommand(
-                    'workbench.action.openWalkthrough',
-                    'volition.agent-sentinel#sentinel-setup',
-                    false,
-                );
-            }, 1500);
-        }
-    }
-
     dispose(): void {
+        if (this.walkthroughTimeout) {
+            clearTimeout(this.walkthroughTimeout);
+        }
         this.disposables.forEach((d) => d.dispose());
     }
 }

@@ -1,4 +1,5 @@
 import type { SparklineConfig } from '../../types/health-metrics.js';
+import { findMinMax } from '../../utils/math.js';
 
 const DEFAULTS: Required<SparklineConfig> = {
     width: 200,
@@ -26,8 +27,7 @@ export function renderSparkline(data: number[], config?: SparklineConfig): strin
     const plotWidth = width - padding * 2;
     const plotHeight = height - padding * 2;
 
-    const min = Math.min(...data);
-    const max = Math.max(...data);
+    const [min, max] = findMinMax(data);
     const range = max - min || 1; // Avoid division by zero for constant data
 
     // Map data to SVG coordinates

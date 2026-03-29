@@ -43,6 +43,7 @@ export class HealthAssessor implements vscode.Disposable {
 
     private currentState: HealthState = 'not-initialized';
     private intervalHandle: ReturnType<typeof setInterval> | undefined;
+    private _isRunning = false;
 
     constructor(cli: SentinelCLI, statusBar: StatusBarManager) {
         this.cli = cli;
@@ -81,12 +82,18 @@ export class HealthAssessor implements vscode.Disposable {
      * Run a health check for the first workspace folder (convenience).
      */
     async runCheckForAllFolders(): Promise<void> {
-        const folder = vscode.workspace.workspaceFolders?.[0];
-        if (!folder) {
-            this.setState('not-initialized', 'No workspace folder open');
-            return;
+        if (this._isRunning) { return; }
+        this._isRunning = true;
+        try {
+            const folder = vscode.workspace.workspaceFolders?.[0];
+            if (!folder) {
+                this.setState('not-initialized', 'No workspace folder open');
+                return;
+            }
+            await this.runCheck(folder.uri.fsPath);
+        } finally {
+            this._isRunning = false;
         }
-        await this.runCheck(folder.uri.fsPath);
     }
 
     /**

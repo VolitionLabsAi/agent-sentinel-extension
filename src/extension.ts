@@ -13,6 +13,7 @@ import { ConfigManager } from './stores/config-manager.js';
 import { SessionHealthProvider } from './ui/sidebar/session-health-provider.js';
 import { EvalRulesProvider } from './ui/sidebar/eval-rules-provider.js';
 import { EvalRuleTreeItem, DynamicEvalRuleTreeItem } from './ui/sidebar/eval-rule-tree-item.js';
+import { setExtensionUri } from './ui/sidebar/observation-tree-item.js';
 import { ObservationCardPanel } from './ui/webview/observation-card-panel.js';
 import { promoteLocalEval } from './evals/eval-promotion.js';
 import { HarnessAdapterRegistry } from './adapters/adapter-registry.js';
@@ -25,6 +26,7 @@ import { EvalCreationPanel } from './ui/webview/eval-creation/panel.js';
 import { EvalEditorPanel } from './ui/webview/eval-editor/panel.js';
 import { SentinelConversationPanel } from './ui/webview/sentinel-panel/panel.js';
 import { steerSentinel } from './commands/steer-sentinel.js';
+import { AboutProvider } from './ui/sidebar/about-provider.js';
 import { HarnessConfigResolver } from './ui/settings/harness-config.js';
 import { generateEvalFromDescription } from './evals/eval-creator.js';
 import { exportEval, importEvalPack } from './evals/eval-import-export.js';
@@ -41,7 +43,10 @@ function sentinelPaths(folder: vscode.WorkspaceFolder) {
 }
 
 export function activate(context: vscode.ExtensionContext) {
-    console.log('Agent Sentinel activated');
+    console.log('[Agent Sentinel] Activation started');
+
+    // Set extension URI for file-based severity icons
+    setExtensionUri(context.extensionUri);
 
     const statusBar = new StatusBarManager(context);
     context.subscriptions.push(statusBar);
@@ -58,6 +63,13 @@ export function activate(context: vscode.ExtensionContext) {
         () => healthAssessor.runCheckForAllFolders(),
     );
     context.subscriptions.push(runHealthCheckCmd);
+
+    // Open settings filtered to sentinel
+    context.subscriptions.push(
+        vscode.commands.registerCommand('sentinel.openSettings', () => {
+            void vscode.commands.executeCommand('workbench.action.openSettings', 'sentinel');
+        }),
+    );
 
     // --- Placeholder commands (declared in package.json, implemented in a future release) ---
 
@@ -202,7 +214,7 @@ export function activate(context: vscode.ExtensionContext) {
             ].join('\n');
 
             const doc = await vscode.workspace.openTextDocument({ content, language: 'markdown' });
-            await vscode.window.showTextDocument(doc, { preview: true });
+            await vscode.window.showTextDocument(doc, { preview: true, preserveFocus: true });
         }),
     );
 
@@ -236,7 +248,7 @@ export function activate(context: vscode.ExtensionContext) {
 
                 if (openAction === 'Open File') {
                     const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
-                    await vscode.window.showTextDocument(doc);
+                    await vscode.window.showTextDocument(doc, { preserveFocus: true });
                 }
 
                 evalRulesProvider.refresh();
@@ -256,7 +268,6 @@ export function activate(context: vscode.ExtensionContext) {
     adapterRegistry.register(new CopilotAdapter());
     adapterRegistry.register(codexAdapter);
 
-    // Kick off async binary detection for CLI-based adapters (non-blocking)
     Promise.all([
         geminiAdapter.detectAvailability(),
         codexAdapter.detectAvailability(),
@@ -479,10 +490,26 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         vscode.commands.registerCommand('sentinel.importEval', async () => {
+            const hint = await vscode.window.showInformationMessage(
+                'Import a YAML eval pack. Expected format: `evals:` array with id, version, domain, severity, rule, and rationale fields.',
+                { modal: false },
+                'Browse...', 'View Example',
+            );
+            if (!hint) { return; }
+            if (hint === 'View Example') {
+                const exampleDir = path.join(context.extensionPath, 'eval-packs');
+                const examples = await vscode.workspace.fs.readDirectory(vscode.Uri.file(exampleDir));
+                if (examples.length > 0) {
+                    const doc = await vscode.workspace.openTextDocument(path.join(exampleDir, examples[0][0]));
+                    await vscode.window.showTextDocument(doc, { preview: true, preserveFocus: true });
+                }
+                return;
+            }
+
             const uris = await vscode.window.showOpenDialog({
                 canSelectMany: false,
                 filters: { 'YAML Files': ['yaml', 'yml'] },
-                title: 'Import Eval Rule(s)',
+                title: 'Import Eval Pack (YAML with evals: array)',
             });
 
             if (!uris || uris.length === 0) { return; }
@@ -544,6 +571,13 @@ export function activate(context: vscode.ExtensionContext) {
             SentinelConversationPanel.viewType,
             sentinelConversationPanel,
         ),
+    );
+
+    // --- About Footer Webview ---
+
+    const aboutProvider = new AboutProvider(context.extensionUri);
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider(AboutProvider.viewType, aboutProvider),
     );
 
     // --- P3-5: Mid-Session Sentinel Steering ---
@@ -610,7 +644,6 @@ export function activate(context: vscode.ExtensionContext) {
         }),
     );
 
-    // Apply initial active session filter if in 'active' mode
     if (initialMode === 'active') {
         sessionCorrelator.correlateActiveSession().then((result) => {
             if (liveFeedProvider.getViewMode() === 'active') {
@@ -757,18 +790,11 @@ export function activate(context: vscode.ExtensionContext) {
         }),
     );
 
-    // Also refresh on config/state changes via a general workspace file watcher
-    if (vscode.workspace.workspaceFolders) {
-        for (const folder of vscode.workspace.workspaceFolders) {
-            const sentinelWatcher = vscode.workspace.createFileSystemWatcher(
-                new vscode.RelativePattern(folder, '.volition/sentinel/**'),
-            );
-            sentinelWatcher.onDidCreate(() => walkthroughManager.refreshAllContextKeys());
-            sentinelWatcher.onDidChange(() => walkthroughManager.refreshAllContextKeys());
-            sentinelWatcher.onDidDelete(() => walkthroughManager.refreshAllContextKeys());
-            context.subscriptions.push(sentinelWatcher);
-        }
-    }
+    // Refresh walkthrough context keys on config/state changes via WorkspaceManager events
+    context.subscriptions.push(
+        workspaceManager.onConfigChanged(() => walkthroughManager.refreshAllContextKeys()),
+        workspaceManager.onStateChanged(() => walkthroughManager.refreshAllContextKeys()),
+    );
 
     // Wire config file changes to ConfigManager and health re-check
     context.subscriptions.push(
@@ -791,11 +817,12 @@ export function activate(context: vscode.ExtensionContext) {
         console.warn('[Agent Sentinel] Initial config load failed:', err);
     });
 
-    // Run initial health check and start periodic checks
     healthAssessor.runCheckForAllFolders().catch((err) => {
         console.warn('[Agent Sentinel] Initial health check failed:', err);
     });
     healthAssessor.startPeriodicCheck();
+
+    console.log('[Agent Sentinel] Activation complete');
 
     // Return API surface for volition-extension (and tests) to consume
     return {

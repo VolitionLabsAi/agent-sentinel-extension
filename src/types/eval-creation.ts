@@ -53,4 +53,5 @@ export type HostToWebviewMessage =
     | { type: 'preview'; yaml: string; filePath: string; evalId: string }
     | { type: 'error'; message: string }
     | { type: 'saved'; filePath: string }
-    | { type: 'loading' };
+    | { type: 'loading' }
+    | { type: 'reset' };
