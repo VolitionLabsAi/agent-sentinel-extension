@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as fs from 'fs';
 import { StatusBarManager } from './ui/status-bar.js';
 import { ObservationStore } from './stores/observation-store.js';
 import { LiveFeedProvider, ViewMode } from './ui/sidebar/live-feed-provider.js';
@@ -71,11 +72,48 @@ export function activate(context: vscode.ExtensionContext) {
         }),
     );
 
+    // --- sentinel.start / sentinel.stop commands ---
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('sentinel.start', async () => {
+            const folder = vscode.workspace.workspaceFolders?.[0];
+            if (!folder) {
+                void vscode.window.showErrorMessage('Sentinel: No workspace folder open.');
+                return;
+            }
+            const configPath = path.join(folder.uri.fsPath, '.volition', 'sentinel', 'sentinel.config.json');
+            if (!fs.existsSync(configPath)) {
+                void vscode.window.showWarningMessage('Sentinel: No sentinel config found in this workspace. Run "Sentinel: Initialize Configuration" first.');
+                return;
+            }
+            const result = await cli.execSentinel(['start'], folder.uri.fsPath);
+            if (result.exitCode === 0) {
+                void vscode.window.showInformationMessage('Sentinel monitoring started.');
+            } else {
+                void vscode.window.showErrorMessage(`Sentinel start failed (exit ${result.exitCode}): ${result.stderr || result.stdout}`);
+            }
+        }),
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('sentinel.stop', async () => {
+            const folder = vscode.workspace.workspaceFolders?.[0];
+            if (!folder) {
+                void vscode.window.showErrorMessage('Sentinel: No workspace folder open.');
+                return;
+            }
+            const result = await cli.execSentinel(['stop'], folder.uri.fsPath);
+            if (result.exitCode === 0) {
+                void vscode.window.showInformationMessage('Sentinel monitoring stopped.');
+            } else {
+                void vscode.window.showErrorMessage(`Sentinel stop failed (exit ${result.exitCode}): ${result.stderr || result.stdout}`);
+            }
+        }),
+    );
+
     // --- Placeholder commands (declared in package.json, implemented in a future release) ---
 
     const placeholderCommands = [
-        { id: 'sentinel.start', label: 'Start Monitoring' },
-        { id: 'sentinel.stop', label: 'Stop Monitoring' },
         { id: 'sentinel.status', label: 'Show Status' },
         { id: 'sentinel.openLiveFeed', label: 'Open Live Feed' },
         { id: 'sentinel.init', label: 'Initialize Configuration' },
@@ -97,6 +135,30 @@ export function activate(context: vscode.ExtensionContext) {
     const autoStart = sentinelConfig.get<boolean>('autoStart', false);
     const maxInMemory = sentinelConfig.get<number>('observations.maxInMemory', 1000);
     console.log(`[Agent Sentinel] autoStart: ${autoStart}`);
+
+    // --- Auto-start sentinel if configured ---
+
+    if (autoStart) {
+        const folder = vscode.workspace.workspaceFolders?.[0];
+        if (folder) {
+            const configPath = path.join(folder.uri.fsPath, '.volition', 'sentinel', 'sentinel.config.json');
+            if (fs.existsSync(configPath)) {
+                console.log('[Agent Sentinel] Auto-starting sentinel monitoring...');
+                cli.execSentinel(['start'], folder.uri.fsPath).then((result) => {
+                    if (result.exitCode === 0) {
+                        console.log('[Agent Sentinel] Sentinel auto-started successfully');
+                        void vscode.window.showInformationMessage('Sentinel auto-started');
+                    } else {
+                        console.warn(`[Agent Sentinel] Sentinel auto-start failed (exit ${result.exitCode}): ${result.stderr}`);
+                    }
+                }).catch((err) => {
+                    console.warn('[Agent Sentinel] Sentinel auto-start error:', err);
+                });
+            } else {
+                console.log('[Agent Sentinel] autoStart enabled but no sentinel config found');
+            }
+        }
+    }
 
     // --- Observation Store & Live Feed ---
 
