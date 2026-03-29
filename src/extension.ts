@@ -159,8 +159,7 @@ export function activate(context: vscode.ExtensionContext) {
     // --- Auto-start sentinel if configured ---
 
     if (autoStart) {
-        const folder = vscode.workspace.workspaceFolders?.[0];
-        if (folder) {
+        for (const folder of (vscode.workspace.workspaceFolders ?? [])) {
             tryAutoStart(cli, folder).catch((err) => {
                 console.warn('[Agent Sentinel] Sentinel auto-start error:', err);
             });
