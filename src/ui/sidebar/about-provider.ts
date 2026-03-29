@@ -85,7 +85,7 @@ export class AboutProvider implements vscode.WebviewViewProvider {
         webviewView.webview.onDidReceiveMessage((msg: { type: string }) => {
             switch (msg.type) {
                 case 'openSettings':
-                    void vscode.commands.executeCommand('workbench.action.openSettings', 'sentinel');
+                    void vscode.commands.executeCommand('sentinel.openSettings');
                     break;
                 case 'openDocs':
                     void vscode.commands.executeCommand(
