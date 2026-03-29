@@ -10,6 +10,7 @@ interface StatusInfo {
     sessionCount: number;
     lastObservationSeverity: string | undefined;
     sessionContext: string | undefined;
+    sessionDetail: string | undefined;
 }
 
 const HEALTH_LABELS: Record<HealthState, string> = {
@@ -41,6 +42,7 @@ export class StatusBarManager implements vscode.Disposable {
         sessionCount: 0,
         lastObservationSeverity: undefined,
         sessionContext: undefined,
+        sessionDetail: undefined,
     };
 
     constructor(_context: vscode.ExtensionContext) {
@@ -85,8 +87,9 @@ export class StatusBarManager implements vscode.Disposable {
      * Update the session context label shown in the status bar text.
      * Values: 'All' | session name | 'Pinned: name' | undefined
      */
-    setSessionContext(context: string | undefined): void {
+    setSessionContext(context: string | undefined, detail?: string): void {
         this.info.sessionContext = context;
+        this.info.sessionDetail = detail;
         this.render();
     }
 
@@ -162,7 +165,10 @@ export class StatusBarManager implements vscode.Disposable {
         }
 
         if (this.info.sessionContext) {
-            lines.push(`Session: ${this.info.sessionContext}`);
+            lines.push(`View: ${this.info.sessionContext}`);
+        }
+        if (this.info.sessionDetail) {
+            lines.push(`Session: ${this.info.sessionDetail}`);
         }
 
         lines.push(``, `*(click to change view mode)*`);

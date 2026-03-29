@@ -689,10 +689,24 @@ export function activate(context: vscode.ExtensionContext) {
                 break;
             case 'recent':
                 statusBar.setSessionContext('Recent');
+                // Resolve title asynchronously for tooltip detail
+                sessionCorrelator.readActiveSessionFile().then(async (result) => {
+                    if (result) {
+                        const title = await resolveSessionTitle(result.sessionId, stateManager, sessionCorrelator);
+                        statusBar.setSessionContext('Recent', title ?? undefined);
+                    }
+                }).catch(() => { /* non-fatal */ });
                 break;
-            case 'pinned':
+            case 'pinned': {
+                const pinnedId = liveFeedProvider.getSessionFilter();
                 statusBar.setSessionContext('Pinned');
+                if (pinnedId) {
+                    resolveSessionTitle(pinnedId, stateManager, sessionCorrelator).then((title) => {
+                        statusBar.setSessionContext('Pinned', title ?? undefined);
+                    }).catch(() => { /* non-fatal */ });
+                }
                 break;
+            }
         }
 
         // Update the header panel with detailed filter info
