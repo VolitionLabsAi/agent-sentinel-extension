@@ -39,6 +39,7 @@ function sentinelPaths(folder: vscode.WorkspaceFolder) {
         config: path.join(sentinelDir, 'sentinel.config.json'),
         observations: path.join(sentinelDir, 'sentinel-observations.jsonl'),
         state: path.join(sentinelDir, 'sentinel-state.json'),
+        activeSession: path.join(sentinelDir, 'active-session.json'),
     };
 }
 
@@ -648,6 +649,12 @@ export function activate(context: vscode.ExtensionContext) {
     sessionCorrelatorRef = sessionCorrelator;
     context.subscriptions.push(sessionCorrelator);
 
+    // Set active-session.json path from the first workspace folder
+    if (vscode.workspace.workspaceFolders?.[0]) {
+        const activeSessionPath = sentinelPaths(vscode.workspace.workspaceFolders[0]).activeSession;
+        sessionCorrelator.setActiveSessionFilePath(activeSessionPath);
+    }
+
     // --- P1-08: Multi-Session View Modes ---
 
     // Default view mode is 'all'; view mode is ephemeral (not persisted to settings)
@@ -661,10 +668,10 @@ export function activate(context: vscode.ExtensionContext) {
             case 'all':
                 statusBar.setSessionContext('All');
                 break;
-            case 'active': {
+            case 'recent': {
                 const result = sessionCorrelator.getCurrentSession();
                 const shortId = result ? result.sessionId.slice(0, 8) : undefined;
-                statusBar.setSessionContext(shortId ? `Active: ${shortId}` : 'Active');
+                statusBar.setSessionContext(shortId ? `Recent: ${shortId}` : 'Recent');
                 break;
             }
             case 'pinned': {
@@ -679,7 +686,7 @@ export function activate(context: vscode.ExtensionContext) {
     // Subscribe to active session changes → update filter when in 'active' mode
     context.subscriptions.push(
         sessionCorrelator.onActiveSessionChanged((result) => {
-            if (liveFeedProvider.getViewMode() === 'active') {
+            if (liveFeedProvider.getViewMode() === 'recent') {
                 liveFeedProvider.setSessionFilter(result?.sessionId);
                 sessionHealthProvider.setSessionFilter(result?.sessionId);
             }
@@ -694,7 +701,7 @@ export function activate(context: vscode.ExtensionContext) {
         const picked = await vscode.window.showQuickPick(
             [
                 { label: '$(globe) All Sessions', description: 'Show observations from all sessions', mode: 'all' as ViewMode },
-                { label: '$(eye) Active Session', description: 'Auto-filter to focused Claude Code tab', mode: 'active' as ViewMode },
+                { label: '$(eye) Recent Session', description: 'Auto-filter to the most recent session from hooks', mode: 'recent' as ViewMode },
                 { label: '$(pin) Pinned Session', description: 'Pin a specific session', mode: 'pinned' as ViewMode },
             ],
             { placeHolder: 'Select view mode for the Live Feed' },
@@ -718,7 +725,7 @@ export function activate(context: vscode.ExtensionContext) {
             if (mode === 'all') {
                 liveFeedProvider.setSessionFilter(undefined);
                 sessionHealthProvider.setSessionFilter(undefined);
-            } else if (mode === 'active') {
+            } else if (mode === 'recent') {
                 const result = await sessionCorrelator.correlateActiveSession();
                 liveFeedProvider.setSessionFilter(result?.sessionId);
                 sessionHealthProvider.setSessionFilter(result?.sessionId);
@@ -840,6 +847,20 @@ export function activate(context: vscode.ExtensionContext) {
         workspaceManager.onConfigChanged(async (uri) => {
             await configManager.update(uri);
             await healthAssessor.runCheckForAllFolders();
+        }),
+    );
+
+    // Wire active-session.json changes to session correlator and view filtering
+    context.subscriptions.push(
+        workspaceManager.onActiveSessionChanged(async () => {
+            await sessionCorrelator.onActiveSessionFileChanged();
+            // If in "recent" view mode, update filters from the correlator's current result
+            if (liveFeedProvider.getViewMode() === 'recent') {
+                const result = sessionCorrelator.getCurrentSession();
+                liveFeedProvider.setSessionFilter(result?.sessionId);
+                sessionHealthProvider.setSessionFilter(result?.sessionId);
+                updateSessionContext();
+            }
         }),
     );
 

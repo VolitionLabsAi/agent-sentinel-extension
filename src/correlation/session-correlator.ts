@@ -11,6 +11,12 @@ export interface CorrelationResult {
     confidence: CorrelationConfidence;
 }
 
+export interface ActiveSessionFile {
+    session_id: string;
+    transcript_path: string;
+    timestamp: string;
+}
+
 /**
  * SessionCorrelator uses three signals to determine which agent session
  * corresponds to the currently active harness tab:
@@ -41,6 +47,12 @@ export class SessionCorrelator implements vscode.Disposable {
 
     /** Signal 1: tab label -> session ID cache */
     private readonly tabCache = new Map<string, string>();
+
+    /** Path to the active-session.json file (set externally). */
+    private activeSessionFilePath: string | undefined;
+
+    /** Cached result from the most recent active-session.json read. */
+    private activeSessionFileResult: CorrelationResult | null = null;
 
     /** Currently correlated session */
     private currentResult: CorrelationResult | null = null;
@@ -74,6 +86,70 @@ export class SessionCorrelator implements vscode.Disposable {
      */
     cacheSessionTab(sessionId: string, tabLabel: string): void {
         this.tabCache.set(tabLabel, sessionId);
+    }
+
+    // ── Active session file ─────────────────────────────────────────
+
+    /**
+     * Set the path to `.volition/sentinel/active-session.json`.
+     * Called by the extension when workspace folders are resolved.
+     */
+    setActiveSessionFilePath(filePath: string): void {
+        this.activeSessionFilePath = filePath;
+    }
+
+    /**
+     * Read active-session.json and return a high-confidence result if
+     * the timestamp is within the last 5 minutes.
+     */
+    async readActiveSessionFile(): Promise<CorrelationResult | null> {
+        if (!this.activeSessionFilePath) {
+            return null;
+        }
+
+        try {
+            const content = await fs.readFile(this.activeSessionFilePath, 'utf-8');
+            const data = JSON.parse(content) as ActiveSessionFile;
+
+            if (!data.session_id || !data.timestamp) {
+                return null;
+            }
+
+            const ACTIVE_SESSION_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+            const fileTime = new Date(data.timestamp).getTime();
+            const now = Date.now();
+
+            if (now - fileTime < ACTIVE_SESSION_WINDOW_MS) {
+                const result: CorrelationResult = {
+                    sessionId: data.session_id,
+                    confidence: 'high',
+                };
+                this.activeSessionFileResult = result;
+                return result;
+            }
+        } catch {
+            // File doesn't exist or is invalid — not fatal
+        }
+
+        this.activeSessionFileResult = null;
+        return null;
+    }
+
+    /**
+     * Called when the active-session.json file changes on disk.
+     * Re-reads the file and emits an event if the session changed.
+     */
+    async onActiveSessionFileChanged(): Promise<void> {
+        const newResult = await this.readActiveSessionFile();
+
+        const changed =
+            (newResult === null) !== (this.currentResult === null) ||
+            newResult?.sessionId !== this.currentResult?.sessionId;
+
+        if (changed) {
+            this.currentResult = newResult;
+            this._onActiveSessionChanged.fire(newResult);
+        }
     }
 
     // ── Tab detection ───────────────────────────────────────────────
@@ -114,6 +190,12 @@ export class SessionCorrelator implements vscode.Disposable {
      * three signals in priority order.
      */
     async correlateActiveSession(): Promise<CorrelationResult | null> {
+        // Signal 0: active-session.json from hooks (highest priority)
+        const activeSessionResult = await this.readActiveSessionFile();
+        if (activeSessionResult) {
+            return activeSessionResult;
+        }
+
         const tab = this.getActiveHarnessTab();
         if (!tab) {
             return null;

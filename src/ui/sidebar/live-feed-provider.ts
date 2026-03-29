@@ -6,7 +6,7 @@ import { Debouncer } from '../../utils/debouncer.js';
 
 type FeedItem = ObservationTreeItem | ObservationDetailItem | LoadMoreTreeItem | EndOfHistoryTreeItem;
 
-export type ViewMode = 'all' | 'active' | 'pinned';
+export type ViewMode = 'all' | 'recent' | 'pinned';
 
 /** How many historical observations to load per "Load More" click. */
 const HISTORY_PAGE_SIZE = 100;
@@ -48,7 +48,7 @@ class EndOfHistoryTreeItem extends vscode.TreeItem {
  *
  * Supports three view modes:
  * - 'all': show all observations across sessions (session label on each item)
- * - 'active': auto-filter to focused Claude Code tab via SessionCorrelator
+ * - 'recent': auto-filter to the most recent session via active-session.json
  * - 'pinned': user-pinned session; feed stays filtered regardless of tab
  *
  * Supports historical browsing via "Load More..." tree items that
@@ -60,7 +60,7 @@ export class LiveFeedProvider implements vscode.TreeDataProvider<FeedItem>, vsco
 
     private readonly disposables: vscode.Disposable[] = [];
     private sessionFilter: string | undefined;
-    private viewMode: ViewMode = 'active';
+    private viewMode: ViewMode = 'recent';
 
     /**
      * Historical observations loaded from disk, keyed by session ID.

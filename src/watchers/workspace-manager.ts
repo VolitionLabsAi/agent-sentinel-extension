@@ -13,6 +13,7 @@ export class WorkspaceManager implements vscode.Disposable {
     private readonly _onStateChanged = new vscode.EventEmitter<vscode.Uri>();
     private readonly _onObservationsChanged = new vscode.EventEmitter<vscode.Uri>();
     private readonly _onConfigChanged = new vscode.EventEmitter<vscode.Uri>();
+    private readonly _onActiveSessionChanged = new vscode.EventEmitter<vscode.Uri>();
 
     /** Aggregated: fires when any folder's sentinel-state.json changes. */
     readonly onStateChanged = this._onStateChanged.event;
@@ -20,9 +21,11 @@ export class WorkspaceManager implements vscode.Disposable {
     readonly onObservationsChanged = this._onObservationsChanged.event;
     /** Aggregated: fires when any folder's sentinel.config.json changes. */
     readonly onConfigChanged = this._onConfigChanged.event;
+    /** Aggregated: fires when any folder's active-session.json changes. */
+    readonly onActiveSessionChanged = this._onActiveSessionChanged.event;
 
     constructor() {
-        this.disposables.push(this._onStateChanged, this._onObservationsChanged, this._onConfigChanged);
+        this.disposables.push(this._onStateChanged, this._onObservationsChanged, this._onConfigChanged, this._onActiveSessionChanged);
 
         // Watch for workspace folder changes
         this.disposables.push(
@@ -57,6 +60,7 @@ export class WorkspaceManager implements vscode.Disposable {
             manager.onStateChanged((uri) => this._onStateChanged.fire(uri)),
             manager.onObservationsChanged((uri) => this._onObservationsChanged.fire(uri)),
             manager.onConfigChanged((uri) => this._onConfigChanged.fire(uri)),
+            manager.onActiveSessionChanged((uri) => this._onActiveSessionChanged.fire(uri)),
         );
 
         this.managers.set(key, manager);

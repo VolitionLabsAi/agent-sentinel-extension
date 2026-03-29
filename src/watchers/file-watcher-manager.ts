@@ -15,6 +15,7 @@ export class FileWatcherManager implements vscode.Disposable {
     private readonly _onStateChanged = new vscode.EventEmitter<vscode.Uri>();
     private readonly _onObservationsChanged = new vscode.EventEmitter<vscode.Uri>();
     private readonly _onConfigChanged = new vscode.EventEmitter<vscode.Uri>();
+    private readonly _onActiveSessionChanged = new vscode.EventEmitter<vscode.Uri>();
 
     /** Fires when sentinel-state.json changes (debounced 150ms). */
     readonly onStateChanged = this._onStateChanged.event;
@@ -22,9 +23,11 @@ export class FileWatcherManager implements vscode.Disposable {
     readonly onObservationsChanged = this._onObservationsChanged.event;
     /** Fires when sentinel.config.json changes (immediate). */
     readonly onConfigChanged = this._onConfigChanged.event;
+    /** Fires when active-session.json changes (immediate). */
+    readonly onActiveSessionChanged = this._onActiveSessionChanged.event;
 
     constructor(readonly folder: vscode.WorkspaceFolder) {
-        this.disposables.push(this._onStateChanged, this._onObservationsChanged, this._onConfigChanged);
+        this.disposables.push(this._onStateChanged, this._onObservationsChanged, this._onConfigChanged, this._onActiveSessionChanged);
 
         this.createDebouncedWatcher(
             folder,
@@ -45,6 +48,13 @@ export class FileWatcherManager implements vscode.Disposable {
             folder,
             '.volition/sentinel/sentinel.config.json',
             (uri) => this._onConfigChanged.fire(uri),
+        );
+
+        // Active session watcher — no debounce, fire immediately
+        this.createWatcher(
+            folder,
+            '.volition/sentinel/active-session.json',
+            (uri) => this._onActiveSessionChanged.fire(uri),
         );
     }
 
