@@ -362,9 +362,16 @@ export class SessionCorrelator implements vscode.Disposable {
                 }
                 try {
                     const entry = JSON.parse(trimmed) as Record<string, unknown>;
-                    // Check common title fields
+                    // Check title fields in priority order:
+                    // customTitle (user-set) > title (generic) > aiTitle (auto-generated) > summary (fallback)
+                    if (typeof entry.customTitle === 'string' && entry.customTitle) {
+                        return entry.customTitle;
+                    }
                     if (typeof entry.title === 'string' && entry.title) {
                         return entry.title;
+                    }
+                    if (typeof entry.aiTitle === 'string' && entry.aiTitle) {
+                        return entry.aiTitle;
                     }
                     if (typeof entry.summary === 'string' && entry.summary) {
                         return entry.summary;
