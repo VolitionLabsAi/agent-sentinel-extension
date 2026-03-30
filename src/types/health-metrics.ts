@@ -8,8 +8,8 @@ export interface HealthSummaryMetrics {
     evalCount: number;
     /** Count of critical + warning observations. */
     corrections: number;
-    /** Number of dynamic eval rules created during the session. */
-    dynamicRulesCount: number;
+    /** Number of dynamic evals created during the session. */
+    dynamicEvalsCount: number;
     /** Average evaluation duration in milliseconds. */
     avgDurationMs: number;
 }

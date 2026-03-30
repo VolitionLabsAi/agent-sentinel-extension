@@ -5,24 +5,24 @@ import { StateManager } from '../../stores/state-manager.js';
 import { EvalDomain, EvalRule, LocalEval } from '../../types/eval-rule.js';
 import {
     DomainTreeItem,
-    EvalRuleTreeItem,
-    DynamicEvalRuleTreeItem,
-    EvalRuleDetailItem,
-} from './eval-rule-tree-item.js';
+    EvalTreeItem,
+    DynamicEvalTreeItem,
+    EvalDetailItem,
+} from './eval-tree-item.js';
 
-type EvalTreeItem = DomainTreeItem | EvalRuleTreeItem | DynamicEvalRuleTreeItem | EvalRuleDetailItem;
+type EvalNode = DomainTreeItem | EvalTreeItem | DynamicEvalTreeItem | EvalDetailItem;
 
 /** Ordered domain list for consistent display. */
 const DOMAIN_ORDER: EvalDomain[] = ['GEN', 'SEC', 'LOCAL'];
 
 /**
- * TreeDataProvider for the Eval Rules sidebar view.
+ * TreeDataProvider for the Evals sidebar view.
  *
- * Displays rules grouped by domain (GEN, SEC, LOCAL), each rule showing
+ * Displays evals grouped by domain (GEN, SEC, LOCAL), each eval showing
  * severity, hit count, enabled state, and expandable detail text.
  */
-export class EvalRulesProvider implements vscode.TreeDataProvider<EvalTreeItem>, vscode.Disposable {
-    private readonly _onDidChangeTreeData = new vscode.EventEmitter<EvalTreeItem | undefined | void>();
+export class EvalsProvider implements vscode.TreeDataProvider<EvalNode>, vscode.Disposable {
+    private readonly _onDidChangeTreeData = new vscode.EventEmitter<EvalNode | undefined | void>();
     readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
     private readonly disposables: vscode.Disposable[] = [];
@@ -69,11 +69,11 @@ export class EvalRulesProvider implements vscode.TreeDataProvider<EvalTreeItem>,
         this._onDidChangeTreeData.fire();
     }
 
-    getTreeItem(element: EvalTreeItem): vscode.TreeItem {
+    getTreeItem(element: EvalNode): vscode.TreeItem {
         return element;
     }
 
-    getChildren(element?: EvalTreeItem): EvalTreeItem[] {
+    getChildren(element?: EvalNode): EvalNode[] {
         if (!element) {
             return this.getRootItems();
         }
@@ -82,11 +82,11 @@ export class EvalRulesProvider implements vscode.TreeDataProvider<EvalTreeItem>,
             return this.getDomainChildren(element.domain);
         }
 
-        if (element instanceof EvalRuleTreeItem) {
+        if (element instanceof EvalTreeItem) {
             return this.getRuleDetails(element.rule);
         }
 
-        if (element instanceof DynamicEvalRuleTreeItem) {
+        if (element instanceof DynamicEvalTreeItem) {
             return this.getRuleDetails(element.localEval);
         }
 
@@ -97,8 +97,8 @@ export class EvalRulesProvider implements vscode.TreeDataProvider<EvalTreeItem>,
      * Root level: domain grouping nodes.
      * Only shows domains that have at least one rule.
      */
-    private getRootItems(): EvalTreeItem[] {
-        const rules = this.configManager.getEvalRules();
+    private getRootItems(): EvalNode[] {
+        const rules = this.configManager.getEvals();
         const localEvals = this.stateManager?.getLocalEvals() ?? [];
 
         if (rules.length === 0 && localEvals.length === 0) {
@@ -122,7 +122,7 @@ export class EvalRulesProvider implements vscode.TreeDataProvider<EvalTreeItem>,
             byDomain.set('LOCAL', existing);
         }
 
-        const items: EvalTreeItem[] = [];
+        const items: EvalNode[] = [];
         for (const domain of DOMAIN_ORDER) {
             const domainRules = byDomain.get(domain) ?? [];
             const dynamicCount = domain === 'LOCAL' ? localEvals.length : 0;
@@ -138,14 +138,14 @@ export class EvalRulesProvider implements vscode.TreeDataProvider<EvalTreeItem>,
     }
 
     /**
-     * Second level: individual rules within a domain.
+     * Second level: individual evals within a domain.
      */
-    private getDomainChildren(domain: EvalDomain): EvalTreeItem[] {
-        const rules = this.configManager.getEvalRules().filter((r) => r.domain === domain);
+    private getDomainChildren(domain: EvalDomain): EvalNode[] {
+        const rules = this.configManager.getEvals().filter((r) => r.domain === domain);
 
-        const items: EvalTreeItem[] = rules.map((rule) => {
+        const items: EvalNode[] = rules.map((rule) => {
             const { hitCount, lastTriggered } = this.getHitStats(rule.id);
-            return new EvalRuleTreeItem(rule, hitCount, lastTriggered);
+            return new EvalTreeItem(rule, hitCount, lastTriggered);
         });
 
         // For the LOCAL domain, also include dynamic evals from state
@@ -154,7 +154,7 @@ export class EvalRulesProvider implements vscode.TreeDataProvider<EvalTreeItem>,
             for (const localEval of localEvals) {
                 const { hitCount, lastTriggered } = this.getHitStats(localEval.id);
                 const isCurrentSession = localEval.created_at >= this.sessionStartTime;
-                items.push(new DynamicEvalRuleTreeItem(localEval, hitCount, lastTriggered, isCurrentSession));
+                items.push(new DynamicEvalTreeItem(localEval, hitCount, lastTriggered, isCurrentSession));
             }
         }
 
@@ -164,14 +164,14 @@ export class EvalRulesProvider implements vscode.TreeDataProvider<EvalTreeItem>,
     /**
      * Third level: rule text and rationale details.
      */
-    private getRuleDetails(rule: EvalRule | LocalEval): EvalRuleDetailItem[] {
-        const items: EvalRuleDetailItem[] = [];
+    private getRuleDetails(rule: EvalRule | LocalEval): EvalDetailItem[] {
+        const items: EvalDetailItem[] = [];
 
         if (rule.rule) {
-            items.push(new EvalRuleDetailItem('Rule', rule.rule));
+            items.push(new EvalDetailItem('Rule', rule.rule));
         }
         if (rule.rationale) {
-            items.push(new EvalRuleDetailItem('Rationale', rule.rationale));
+            items.push(new EvalDetailItem('Rationale', rule.rationale));
         }
 
         return items;
@@ -213,11 +213,11 @@ export class EvalRulesProvider implements vscode.TreeDataProvider<EvalTreeItem>,
 
     private createEmptyStateItem(): vscode.TreeItem {
         const item = new vscode.TreeItem(
-            'No eval rules found — check sentinel config',
+            'No evals found — check sentinel config',
             vscode.TreeItemCollapsibleState.None,
         );
         item.iconPath = new vscode.ThemeIcon('info');
-        return item as EvalTreeItem;
+        return item as EvalNode;
     }
 
     dispose(): void {

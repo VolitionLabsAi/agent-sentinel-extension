@@ -50,7 +50,7 @@ suite('E2E: Observation to Live Feed', () => {
         }
     });
 
-    test('New observation appears in LiveFeedProvider within 500ms', async function () {
+    test('New observation appears in ObservationsProvider within 500ms', async function () {
         if (!workspaceFolder) {
             this.skip();
             return;
@@ -64,17 +64,17 @@ suite('E2E: Observation to Live Feed', () => {
             await ext.activate();
         }
 
-        const { observationStore, liveFeedProvider } = ext.exports as {
+        const { observationStore, observationsProvider } = ext.exports as {
             observationStore: {
                 onObservationReceived: vscode.Event<PersistentObservation>;
                 getObservations: (filter?: Record<string, unknown>) => PersistentObservation[];
                 addFolder: (folderKey: string, observationsPath: string) => void;
             };
-            liveFeedProvider: { onDidChangeTreeData: vscode.Event<void> };
+            observationsProvider: { onDidChangeTreeData: vscode.Event<void> };
         };
 
         assert.ok(observationStore, 'observationStore not available from extension exports');
-        assert.ok(liveFeedProvider, 'liveFeedProvider not available from extension exports');
+        assert.ok(observationsProvider, 'observationsProvider not available from extension exports');
 
         const testSessionId = `e2e-test-${Date.now()}`;
 
@@ -102,7 +102,7 @@ suite('E2E: Observation to Live Feed', () => {
 
         // Set up a promise that resolves when the tree data changes
         const treeUpdateReceived = new Promise<void>((resolve) => {
-            const disposable = liveFeedProvider.onDidChangeTreeData(() => {
+            const disposable = observationsProvider.onDidChangeTreeData(() => {
                 disposable.dispose();
                 resolve();
             });

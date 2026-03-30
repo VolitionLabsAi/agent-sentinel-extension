@@ -15,8 +15,8 @@
     },
     "observation_window_hours": {
       "type": "number",
-      "description": "Number of hours to look back when showing observations in \"All\" mode. Applies to status bar severity, Session Health panel, and anywhere else that uses time-filtered observations.",
-      "markdownDescription": "Number of hours to look back when showing observations in **All** mode.\n\nApplies to status bar severity, Session Health panel, and anywhere else that uses time-filtered observations.\n\nMinimum: `1` hour. Default: `24` hours.",
+      "description": "Number of hours to look back when showing observations in \"All\" mode. Applies to status bar severity, Insights panel, and anywhere else that uses time-filtered observations.",
+      "markdownDescription": "Number of hours to look back when showing observations in **All** mode.\n\nApplies to status bar severity, Insights panel, and anywhere else that uses time-filtered observations.\n\nMinimum: `1` hour. Default: `24` hours.",
       "default": 24,
       "minimum": 1
     },

@@ -230,9 +230,9 @@ export class ConfigManager implements vscode.Disposable {
     }
 
     /**
-     * Returns all eval rules across all workspace folders.
+     * Returns all evals across all workspace folders.
      */
-    getEvalRules(): EvalRule[] {
+    getEvals(): EvalRule[] {
         return this.mergedRules;
     }
 

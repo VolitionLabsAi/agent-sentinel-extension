@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import { ObservationStore } from '../../stores/observation-store';
 import { StateManager } from '../../stores/state-manager';
 import { ConfigManager } from '../../stores/config-manager';
-import { LiveFeedProvider } from '../../ui/sidebar/live-feed-provider';
+import { ObservationsProvider } from '../../ui/sidebar/observations-provider';
 import { PersistentObservation } from '../../types/observation';
 import { renderSparkline } from '../../ui/charts/sparkline';
 import { renderDonut } from '../../ui/charts/donut';
@@ -46,7 +46,7 @@ suite('Performance Gates', () => {
             // Extension already activated — verify the exports exist (activation succeeded)
             assert.ok(ext.exports, 'Extension activated but returned no exports');
             assert.ok(ext.exports.observationStore, 'Missing observationStore in exports');
-            assert.ok(ext.exports.liveFeedProvider, 'Missing liveFeedProvider in exports');
+            assert.ok(ext.exports.observationsProvider, 'Missing observationsProvider in exports');
         }
     });
 
@@ -166,7 +166,7 @@ suite('Performance Gates', () => {
         store.dispose();
     });
 
-    test('ConfigManager.getEvalRules with 50 rules completes in <10ms', () => {
+    test('ConfigManager.getEvals with 50 rules completes in <10ms', () => {
         const configManager = new ConfigManager();
 
         // Simulate 50 rules by directly populating merged rules
@@ -187,21 +187,21 @@ suite('Performance Gates', () => {
 
         const start = performance.now();
         for (let iter = 0; iter < 100; iter++) {
-            configManager.getEvalRules();
+            configManager.getEvals();
         }
         const elapsed = performance.now() - start;
         const avgMs = elapsed / 100;
 
-        console.log(`getEvalRules (50 rules, avg over 100 calls): ${avgMs.toFixed(3)}ms`);
+        console.log(`getEvals (50 rules, avg over 100 calls): ${avgMs.toFixed(3)}ms`);
         assert.ok(
             avgMs < 10,
-            `getEvalRules avg ${avgMs.toFixed(3)}ms exceeds 10ms gate`,
+            `getEvals avg ${avgMs.toFixed(3)}ms exceeds 10ms gate`,
         );
 
         configManager.dispose();
     });
 
-    test('LiveFeedProvider.getChildren with 1000 observations completes in <100ms', () => {
+    test('ObservationsProvider.getChildren with 1000 observations completes in <100ms', () => {
         const store = new ObservationStore(1000);
         store.addFolder('feed-perf', '/tmp/sentinel-feed-perf/observations.jsonl');
 
@@ -209,14 +209,14 @@ suite('Performance Gates', () => {
             (store as unknown as ObservationStoreTestable).addObservation(createTestObservation('feed-session', i));
         }
 
-        const provider = new LiveFeedProvider(store, new StateManager());
+        const provider = new ObservationsProvider(store, new StateManager());
         provider.setViewMode('all');
 
         const start = performance.now();
         const items = provider.getChildren();
         const elapsed = performance.now() - start;
 
-        console.log(`LiveFeedProvider.getChildren (${items.length} items): ${elapsed.toFixed(2)}ms`);
+        console.log(`ObservationsProvider.getChildren (${items.length} items): ${elapsed.toFixed(2)}ms`);
         assert.ok(items.length > 0, 'Expected at least one tree item');
         assert.ok(
             elapsed < 100,
@@ -242,9 +242,9 @@ suite('Performance Gates', () => {
         assert.strictEqual(obs.length, 0, 'Observations should be cleared after dispose');
     });
 
-    test('No active timers after LiveFeedProvider.dispose()', () => {
+    test('No active timers after ObservationsProvider.dispose()', () => {
         const store = new ObservationStore(100);
-        const provider = new LiveFeedProvider(store, new StateManager());
+        const provider = new ObservationsProvider(store, new StateManager());
 
         provider.dispose();
 

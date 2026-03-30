@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
-import type { ViewMode } from './live-feed-provider.js';
+import type { ViewMode } from './observations-provider.js';
 import type { SessionCorrelator } from '../../correlation/session-correlator.js';
 import type { StateManager } from '../../stores/state-manager.js';
 
-/** Minimal interface for the live-feed provider fields we need. */
-interface LiveFeedProviderLike {
+/** Minimal interface for the observations provider fields we need. */
+interface ObservationsProviderLike {
     getSessionFilter(): string | undefined;
 }
 
@@ -24,7 +24,7 @@ export class AboutProvider implements vscode.WebviewViewProvider {
      */
     async updateFilterState(
         mode: ViewMode,
-        liveFeed: LiveFeedProviderLike,
+        observations: ObservationsProviderLike,
         correlator: SessionCorrelator,
         stateMgr: StateManager,
     ): Promise<void> {
@@ -51,7 +51,7 @@ export class AboutProvider implements vscode.WebviewViewProvider {
                 // ignore
             }
         } else if (mode === 'pinned') {
-            const filter = liveFeed.getSessionFilter();
+            const filter = observations.getSessionFilter();
             if (filter) {
                 try {
                     const session = stateMgr.getSession(filter);

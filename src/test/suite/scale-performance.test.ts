@@ -5,7 +5,7 @@ import * as os from 'os';
 import { ObservationStore } from '../../stores/observation-store';
 import { StateManager } from '../../stores/state-manager';
 import { ConfigManager } from '../../stores/config-manager';
-import { LiveFeedProvider } from '../../ui/sidebar/live-feed-provider';
+import { ObservationsProvider } from '../../ui/sidebar/observations-provider';
 import { PersistentObservation } from '../../types/observation';
 import { renderSparkline } from '../../ui/charts/sparkline';
 import { renderDonut } from '../../ui/charts/donut';
@@ -321,10 +321,10 @@ suite('Scale: JSONL Parsing', () => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// 3. LiveFeedProvider Scale
+// 3. ObservationsProvider Scale
 // ─────────────────────────────────────────────────────────────
 
-suite('Scale: LiveFeedProvider', () => {
+suite('Scale: ObservationsProvider', () => {
 
     test('5K observations — getChildren <200ms', function () {
         this.timeout(15000);
@@ -337,14 +337,14 @@ suite('Scale: LiveFeedProvider', () => {
             );
         }
 
-        const provider = new LiveFeedProvider(store, new StateManager());
+        const provider = new ObservationsProvider(store, new StateManager());
         provider.setViewMode('all');
 
         const start = performance.now();
         const items = provider.getChildren();
         const elapsed = performance.now() - start;
 
-        console.log(`\n  LiveFeedProvider 5K: ${items.length} items`);
+        console.log(`\n  ObservationsProvider 5K: ${items.length} items`);
         reportMetric('5K getChildren', elapsed, 200, 'ms');
 
         assert.ok(items.length > 0, 'Expected tree items');
@@ -365,14 +365,14 @@ suite('Scale: LiveFeedProvider', () => {
             );
         }
 
-        const provider = new LiveFeedProvider(store, new StateManager());
+        const provider = new ObservationsProvider(store, new StateManager());
         provider.setViewMode('all');
 
         const start = performance.now();
         const items = provider.getChildren();
         const elapsed = performance.now() - start;
 
-        console.log(`\n  LiveFeedProvider 10K: ${items.length} items`);
+        console.log(`\n  ObservationsProvider 10K: ${items.length} items`);
         reportMetric('10K getChildren', elapsed, 500, 'ms');
 
         assert.ok(items.length > 0, 'Expected tree items');
@@ -393,7 +393,7 @@ suite('Scale: LiveFeedProvider', () => {
             );
         }
 
-        const provider = new LiveFeedProvider(store, new StateManager());
+        const provider = new ObservationsProvider(store, new StateManager());
         provider.setViewMode('all');
 
         // Get root items
@@ -622,7 +622,7 @@ suite('Scale: Chart Rendering', () => {
 
 suite('Scale: ConfigManager', () => {
 
-    test('200 eval rules — getEvalRules <10ms', function () {
+    test('200 eval rules — getEvals <10ms', function () {
         const configManager = new ConfigManager();
         const rules: EvalRule[] = [];
         for (let i = 0; i < 200; i++) {
@@ -640,25 +640,25 @@ suite('Scale: ConfigManager', () => {
         (configManager as unknown as ConfigManagerTestable).mergedRules = rules;
 
         // Warm up
-        configManager.getEvalRules();
+        configManager.getEvals();
 
         const iterations = 1000;
         const start = performance.now();
         for (let iter = 0; iter < iterations; iter++) {
-            configManager.getEvalRules();
+            configManager.getEvals();
         }
         const elapsed = performance.now() - start;
         const avgMs = elapsed / iterations;
 
         console.log(`\n  ConfigManager 200 rules`);
-        reportMetric('200 rules getEvalRules (avg)', avgMs, 10, 'ms');
+        reportMetric('200 rules getEvals (avg)', avgMs, 10, 'ms');
 
         assert.ok(avgMs < 10, `200 rules avg ${avgMs.toFixed(3)}ms exceeds 10ms budget`);
 
         configManager.dispose();
     });
 
-    test('500 eval rules — getEvalRules <10ms', function () {
+    test('500 eval rules — getEvals <10ms', function () {
         const configManager = new ConfigManager();
         const rules: EvalRule[] = [];
         for (let i = 0; i < 500; i++) {
@@ -675,18 +675,18 @@ suite('Scale: ConfigManager', () => {
         }
         (configManager as unknown as ConfigManagerTestable).mergedRules = rules;
 
-        configManager.getEvalRules();
+        configManager.getEvals();
 
         const iterations = 1000;
         const start = performance.now();
         for (let iter = 0; iter < iterations; iter++) {
-            configManager.getEvalRules();
+            configManager.getEvals();
         }
         const elapsed = performance.now() - start;
         const avgMs = elapsed / iterations;
 
         console.log(`\n  ConfigManager 500 rules`);
-        reportMetric('500 rules getEvalRules (avg)', avgMs, 10, 'ms');
+        reportMetric('500 rules getEvals (avg)', avgMs, 10, 'ms');
 
         assert.ok(avgMs < 10, `500 rules avg ${avgMs.toFixed(3)}ms exceeds 10ms budget`);
 

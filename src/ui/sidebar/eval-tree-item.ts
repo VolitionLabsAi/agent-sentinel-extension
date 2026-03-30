@@ -44,7 +44,7 @@ export class DomainTreeItem extends vscode.TreeItem {
 /**
  * Individual eval rule node.
  */
-export class EvalRuleTreeItem extends vscode.TreeItem {
+export class EvalTreeItem extends vscode.TreeItem {
     constructor(
         public readonly rule: EvalRule,
         public readonly hitCount: number,
@@ -97,7 +97,7 @@ export class EvalRuleTreeItem extends vscode.TreeItem {
  * Tree item for a dynamically-created LOCAL eval rule.
  * Visually distinct from static rules with a sparkle icon and "dynamic" badge.
  */
-export class DynamicEvalRuleTreeItem extends vscode.TreeItem {
+export class DynamicEvalTreeItem extends vscode.TreeItem {
     constructor(
         public readonly localEval: LocalEval,
         public readonly hitCount: number,
@@ -149,7 +149,7 @@ export class DynamicEvalRuleTreeItem extends vscode.TreeItem {
 /**
  * Leaf node showing rule text or rationale detail.
  */
-export class EvalRuleDetailItem extends vscode.TreeItem {
+export class EvalDetailItem extends vscode.TreeItem {
     constructor(label: string, detail: string) {
         super('', vscode.TreeItemCollapsibleState.None);
 

@@ -56,7 +56,7 @@ export class StatusBarManager implements vscode.Disposable {
             vscode.StatusBarAlignment.Left,
             100,
         );
-        this.item.command = 'sentinel.showSessionHealth';
+        this.item.command = 'sentinel.showInsights';
 
         // Initial render — status bar is always visible
         this.render();
@@ -204,7 +204,7 @@ export class StatusBarManager implements vscode.Disposable {
             lines.push(`Session: ${this.info.sessionDetail}`);
         }
 
-        lines.push(``, `*(click to open Session Health)*`);
+        lines.push(``, `*(click to open Insights)*`);
 
         const md = new vscode.MarkdownString(lines.join('\n\n'));
         md.isTrusted = true;

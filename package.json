@@ -50,8 +50,8 @@
         "title": "Sentinel: Show Status"
       },
       {
-        "command": "sentinel.openLiveFeed",
-        "title": "Sentinel: Open Live Feed"
+        "command": "sentinel.openObservations",
+        "title": "Sentinel: Open Observations"
       },
       {
         "command": "sentinel.runHealthCheck",
@@ -67,8 +67,8 @@
         "icon": "$(filter)"
       },
       {
-        "command": "sentinel.showSessionHealth",
-        "title": "Sentinel: Show Session Health"
+        "command": "sentinel.showInsights",
+        "title": "Sentinel: Show Insights"
       },
       {
         "command": "sentinel.navigateToSession",
@@ -105,9 +105,8 @@
         "icon": "$(arrow-up)"
       },
       {
-        "command": "sentinel.openSentinelChat",
-        "title": "Sentinel: Open Chat",
-        "icon": "$(comment-discussion)"
+        "command": "sentinel.openFullConversation",
+        "title": "Sentinel: Open Full Conversation"
       },
       {
         "command": "sentinel.createEval",
@@ -154,23 +153,13 @@
           "group": "navigation"
         },
         {
-          "command": "sentinel.openSentinelChat",
-          "when": "view == sentinel.liveFeed || view == sentinel.conversationPanel",
-          "group": "navigation"
-        },
-        {
           "command": "sentinel.createEval",
-          "when": "view == sentinel.evalRules",
+          "when": "view == sentinel.evals",
           "group": "navigation"
         },
         {
           "command": "sentinel.importEval",
-          "when": "view == sentinel.evalRules",
-          "group": "navigation"
-        },
-        {
-          "command": "sentinel.steerSentinel",
-          "when": "view == sentinel.conversationPanel",
+          "when": "view == sentinel.evals",
           "group": "navigation"
         }
       ],
@@ -220,22 +209,17 @@
           "visibility": "visible"
         },
         {
-          "id": "sentinel.liveFeed",
-          "name": "Live Feed"
+          "id": "sentinel.observations",
+          "name": "Observations"
         },
         {
-          "id": "sentinel.sessionHealth",
-          "name": "Session Health",
+          "id": "sentinel.insights",
+          "name": "Insights",
           "type": "webview"
         },
         {
-          "id": "sentinel.evalRules",
-          "name": "Eval Rules"
-        },
-        {
-          "id": "sentinel.conversationPanel",
-          "name": "Sentinel Chat",
-          "type": "webview"
+          "id": "sentinel.evals",
+          "name": "Evals"
         }
       ]
     },
@@ -291,15 +275,15 @@
             ]
           },
           {
-            "id": "explore-live-feed",
-            "title": "Explore the Live Feed",
-            "description": "Open the Sentinel sidebar to browse observations in real time.\n\n[Open Live Feed](command:sentinel.openLiveFeed)",
+            "id": "explore-observations",
+            "title": "Explore Observations",
+            "description": "Open the Sentinel sidebar to browse observations in real time.\n\n[Open Observations](command:sentinel.openObservations)",
             "media": {
               "image": "media/walkthrough/explore-live-feed.png",
-              "altText": "Live Feed sidebar"
+              "altText": "Observations sidebar"
             },
             "completionEvents": [
-              "onCommand:sentinel.openLiveFeed"
+              "onCommand:sentinel.openObservations"
             ]
           }
         ]

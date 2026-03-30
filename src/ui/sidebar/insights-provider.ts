@@ -10,14 +10,14 @@ const SPARKLINE_WINDOW = 20;
 const MAX_CHART_POINTS = 200;
 
 /**
- * WebviewViewProvider for the Session Health panel.
+ * WebviewViewProvider for the Insights panel.
  *
  * Computes health metrics from the ObservationStore and renders them
  * as SVG charts in a sidebar webview. Updates automatically when
  * new observations arrive.
  */
-export class SessionHealthProvider implements vscode.WebviewViewProvider, vscode.Disposable {
-    public static readonly viewType = 'sentinel.sessionHealth';
+export class InsightsProvider implements vscode.WebviewViewProvider, vscode.Disposable {
+    public static readonly viewType = 'sentinel.insights';
 
     private view: vscode.WebviewView | undefined;
     private readonly disposables: vscode.Disposable[] = [];
@@ -115,11 +115,11 @@ export class SessionHealthProvider implements vscode.WebviewViewProvider, vscode
         let critical = 0;
         let warning = 0;
         let info = 0;
-        let dynamicRulesCount = 0;
+        let dynamicEvalsCount = 0;
         let totalDuration = 0;
         for (const o of observations) {
             totalDuration += o.duration_ms;
-            if (o.dynamic_eval_created) dynamicRulesCount++;
+            if (o.dynamic_eval_created) dynamicEvalsCount++;
             switch (o.severity) {
                 case 'critical':
                     critical++;
@@ -150,11 +150,11 @@ export class SessionHealthProvider implements vscode.WebviewViewProvider, vscode
             severity: o.severity,
             evalId: o.eval_id,
         }));
-        const timeline = SessionHealthProvider.downsample(timelineAll, MAX_CHART_POINTS);
+        const timeline = InsightsProvider.downsample(timelineAll, MAX_CHART_POINTS);
 
         const data: HealthViewData = {
             type: 'healthUpdate',
-            summary: { evalCount, corrections, dynamicRulesCount, avgDurationMs },
+            summary: { evalCount, corrections, dynamicEvalsCount, avgDurationMs },
             severity: { critical, warning, info },
             latencyTrend,
             timeline,

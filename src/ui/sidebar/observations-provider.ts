@@ -55,7 +55,7 @@ class EndOfHistoryTreeItem extends vscode.TreeItem {
  * Supports historical browsing via "Load More..." tree items that
  * lazy-load observations from disk beyond the in-memory cache boundary.
  */
-export class LiveFeedProvider implements vscode.TreeDataProvider<FeedItem>, vscode.Disposable {
+export class ObservationsProvider implements vscode.TreeDataProvider<FeedItem>, vscode.Disposable {
     private readonly _onDidChangeTreeData = new vscode.EventEmitter<FeedItem | undefined | void>();
     readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 

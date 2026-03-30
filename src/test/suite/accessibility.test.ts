@@ -10,8 +10,6 @@ import { renderTimeline } from '../../ui/charts/timeline';
 import { EVAL_CREATION_STYLES } from '../../ui/webview/eval-creation/styles';
 import { buildEvalCreationHtml } from '../../ui/webview/eval-creation/template';
 import { EVAL_EDITOR_STYLES } from '../../ui/webview/eval-editor/styles';
-import { SENTINEL_PANEL_STYLES } from '../../ui/webview/sentinel-panel/styles';
-import { buildSentinelPanelHtml } from '../../ui/webview/sentinel-panel/template';
 import type { PersistentObservation } from '../../types/observation';
 
 function makeObservation(overrides: Partial<PersistentObservation> = {}): PersistentObservation {
@@ -303,74 +301,6 @@ suite('WCAG 2.1 AA Compliance', () => {
         );
     });
 
-    // ── Sentinel Panel Webview ───────────────────────────────
-
-    test('sentinel panel uses VS Code theme variables for all colors', () => {
-        const html = buildSentinelPanelHtml('test-nonce', 'https://test.vscode-resource.vscode-cdn.net');
-        const hardcoded = findHardcodedColors(html);
-
-        assert.deepStrictEqual(
-            hardcoded,
-            [],
-            `Sentinel panel webview contains hardcoded colors: ${hardcoded.join(', ')}`,
-        );
-    });
-
-    test('sentinel panel styles include prefers-reduced-motion with universal catch-all', () => {
-        assert.ok(
-            SENTINEL_PANEL_STYLES.includes('@media (prefers-reduced-motion: reduce)'),
-            'Sentinel panel CSS missing @media (prefers-reduced-motion: reduce)',
-        );
-        assert.ok(
-            SENTINEL_PANEL_STYLES.includes('animation: none !important'),
-            'Sentinel panel CSS missing universal animation disable under reduced motion',
-        );
-    });
-
-    test('sentinel panel styles have focus-visible indicators', () => {
-        assert.ok(
-            SENTINEL_PANEL_STYLES.includes(':focus-visible'),
-            'Sentinel panel CSS missing :focus-visible styles',
-        );
-        assert.ok(
-            SENTINEL_PANEL_STYLES.includes('--vscode-focusBorder'),
-            'Sentinel panel CSS focus indicators should use VS Code theme focus border',
-        );
-    });
-
-    test('sentinel panel has aria-live regions for dynamic content', () => {
-        const html = buildSentinelPanelHtml('test-nonce', 'https://test.vscode-resource.vscode-cdn.net');
-
-        // Status badge should be announced to screen readers
-        assert.ok(
-            html.includes('role="status"'),
-            'Sentinel panel missing role="status" on status badge',
-        );
-
-        // Observation list should announce new observations
-        assert.ok(
-            html.includes('aria-live="polite"'),
-            'Sentinel panel missing aria-live regions for dynamic content',
-        );
-    });
-
-    test('sentinel panel interactive elements have aria labels', () => {
-        const html = buildSentinelPanelHtml('test-nonce', 'https://test.vscode-resource.vscode-cdn.net');
-
-        assert.ok(
-            html.includes('aria-label="Quick message to sentinel"'),
-            'Quick input missing aria-label',
-        );
-        assert.ok(
-            html.includes('aria-label="Send message"'),
-            'Send button missing aria-label',
-        );
-        assert.ok(
-            html.includes('aria-label="Open full sentinel conversation"'),
-            'Open chat button missing aria-label',
-        );
-    });
-
     // ── Session Health aria-live ──────────────────────────────
 
     test('session health webview has aria-live for dynamic metric updates', () => {
@@ -395,9 +325,6 @@ suite('WCAG 2.1 AA Compliance', () => {
 
         const evalCreation = buildEvalCreationHtml('test-nonce');
         assert.ok(evalCreation.includes('lang="en"'), 'Eval creation webview missing lang="en"');
-
-        const sentinelPanel = buildSentinelPanelHtml('test-nonce', 'https://test.vscode-resource.vscode-cdn.net');
-        assert.ok(sentinelPanel.includes('lang="en"'), 'Sentinel panel webview missing lang="en"');
     });
 
     // ── Observation card styles: universal reduced motion ─────

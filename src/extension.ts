@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { StatusBarManager } from './ui/status-bar.js';
 import { ObservationStore } from './stores/observation-store.js';
-import { LiveFeedProvider, ViewMode } from './ui/sidebar/live-feed-provider.js';
+import { ObservationsProvider, ViewMode } from './ui/sidebar/observations-provider.js';
 import { WorkspaceManager } from './watchers/workspace-manager.js';
 import { WalkthroughManager } from './ui/walkthrough.js';
 import { SentinelCLI } from './cli/sentinel-cli.js';
@@ -10,9 +10,9 @@ import { HealthAssessor } from './health/health-assessor.js';
 import { SessionCorrelator } from './correlation/session-correlator.js';
 import { StateManager } from './stores/state-manager.js';
 import { ConfigManager } from './stores/config-manager.js';
-import { SessionHealthProvider } from './ui/sidebar/session-health-provider.js';
-import { EvalRulesProvider } from './ui/sidebar/eval-rules-provider.js';
-import { EvalRuleTreeItem, DynamicEvalRuleTreeItem } from './ui/sidebar/eval-rule-tree-item.js';
+import { InsightsProvider } from './ui/sidebar/insights-provider.js';
+import { EvalsProvider } from './ui/sidebar/evals-provider.js';
+import { EvalTreeItem, DynamicEvalTreeItem } from './ui/sidebar/eval-tree-item.js';
 import { setExtensionUri } from './ui/sidebar/observation-tree-item.js';
 import { ObservationCardPanel } from './ui/webview/observation-card-panel.js';
 import { promoteLocalEval } from './evals/eval-promotion.js';
@@ -24,7 +24,6 @@ import { CodexCLIAdapter } from './adapters/codex-cli-adapter.js';
 import { openSentinelChat } from './commands/open-sentinel-chat.js';
 import { EvalCreationPanel } from './ui/webview/eval-creation/panel.js';
 import { EvalEditorPanel } from './ui/webview/eval-editor/panel.js';
-import { SentinelConversationPanel } from './ui/webview/sentinel-panel/panel.js';
 import { steerSentinel } from './commands/steer-sentinel.js';
 import { AboutProvider } from './ui/sidebar/about-provider.js';
 import { HarnessConfigResolver } from './ui/settings/harness-config.js';
@@ -154,7 +153,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     const placeholderCommands = [
         { id: 'sentinel.status', label: 'Show Status' },
-        { id: 'sentinel.openLiveFeed', label: 'Open Live Feed' },
+        { id: 'sentinel.openObservations', label: 'Open Observations' },
         { id: 'sentinel.init', label: 'Initialize Configuration' },
     ];
 
@@ -168,7 +167,7 @@ export function activate(context: vscode.ExtensionContext) {
         );
     }
 
-    // --- Observation Store & Live Feed ---
+    // --- Observation Store & Observations ---
 
     const maxInMemory = 1000;
     const observationStore = new ObservationStore(maxInMemory);
@@ -214,43 +213,43 @@ export function activate(context: vscode.ExtensionContext) {
         }),
     );
 
-    const liveFeedProvider = new LiveFeedProvider(observationStore, stateManager);
-    context.subscriptions.push(liveFeedProvider);
+    const observationsProvider = new ObservationsProvider(observationStore, stateManager);
+    context.subscriptions.push(observationsProvider);
 
-    const treeView = vscode.window.createTreeView('sentinel.liveFeed', {
-        treeDataProvider: liveFeedProvider,
+    const treeView = vscode.window.createTreeView('sentinel.observations', {
+        treeDataProvider: observationsProvider,
         showCollapseAll: true,
     });
     context.subscriptions.push(treeView);
 
-    // --- Session Health Webview ---
+    // --- Insights Webview ---
 
-    const sessionHealthProvider = new SessionHealthProvider(observationStore, stateManager);
+    const insightsProvider = new InsightsProvider(observationStore, stateManager);
     context.subscriptions.push(
-        vscode.window.registerWebviewViewProvider(SessionHealthProvider.viewType, sessionHealthProvider),
+        vscode.window.registerWebviewViewProvider(InsightsProvider.viewType, insightsProvider),
     );
 
-    // --- Show Session Health (status bar click) ---
+    // --- Show Insights (status bar click) ---
 
     context.subscriptions.push(
-        vscode.commands.registerCommand('sentinel.showSessionHealth', () => {
-            void vscode.commands.executeCommand('sentinel.sessionHealth.focus');
+        vscode.commands.registerCommand('sentinel.showInsights', () => {
+            void vscode.commands.executeCommand('sentinel.insights.focus');
         }),
     );
 
-    // --- Eval Rules Tree View ---
+    // --- Evals Tree View ---
 
-    const evalRulesProvider = new EvalRulesProvider(configManager, observationStore, stateManager);
-    const evalRulesTree = vscode.window.createTreeView('sentinel.evalRules', {
-        treeDataProvider: evalRulesProvider,
+    const evalsProvider = new EvalsProvider(configManager, observationStore, stateManager);
+    const evalsTree = vscode.window.createTreeView('sentinel.evals', {
+        treeDataProvider: evalsProvider,
     });
-    context.subscriptions.push(evalRulesTree);
+    context.subscriptions.push(evalsTree);
 
     context.subscriptions.push(
-        vscode.commands.registerCommand('sentinel.toggleEvalRule', async (ruleItem: EvalRuleTreeItem) => {
+        vscode.commands.registerCommand('sentinel.toggleEvalRule', async (ruleItem: EvalTreeItem) => {
             if (ruleItem?.rule) {
                 await configManager.setEvalEnabled(ruleItem.rule.id, !ruleItem.rule.enabled);
-                evalRulesProvider.refresh();
+                evalsProvider.refresh();
             }
         }),
     );
@@ -264,8 +263,8 @@ export function activate(context: vscode.ExtensionContext) {
                 'Inspect',
             ).then((action) => {
                 if (action === 'Inspect') {
-                    // Focus the eval rules view so the user can see the new dynamic eval
-                    void vscode.commands.executeCommand('sentinel.evalRules.focus');
+                    // Focus the evals view so the user can see the new dynamic eval
+                    void vscode.commands.executeCommand('sentinel.evals.focus');
                 }
             });
         }),
@@ -273,7 +272,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Register sentinel.inspectDynamicEval command — opens rule text in untitled document
     context.subscriptions.push(
-        vscode.commands.registerCommand('sentinel.inspectDynamicEval', async (item: DynamicEvalRuleTreeItem) => {
+        vscode.commands.registerCommand('sentinel.inspectDynamicEval', async (item: DynamicEvalTreeItem) => {
             if (!item?.localEval) { return; }
             const content = [
                 `# ${item.localEval.id} (dynamic eval)`,
@@ -300,7 +299,7 @@ export function activate(context: vscode.ExtensionContext) {
     // --- Dynamic Eval Promotion ---
 
     context.subscriptions.push(
-        vscode.commands.registerCommand('sentinel.promoteEval', async (item: DynamicEvalRuleTreeItem) => {
+        vscode.commands.registerCommand('sentinel.promoteEval', async (item: DynamicEvalTreeItem) => {
             if (!item?.localEval) { return; }
 
             const confirm = await vscode.window.showInformationMessage(
@@ -330,7 +329,7 @@ export function activate(context: vscode.ExtensionContext) {
                     await vscode.window.showTextDocument(doc, { preserveFocus: true });
                 }
 
-                evalRulesProvider.refresh();
+                evalsProvider.refresh();
             } catch (err) {
                 void vscode.window.showErrorMessage(`Failed to promote eval: ${err}`);
             }
@@ -393,10 +392,10 @@ export function activate(context: vscode.ExtensionContext) {
         }),
     );
 
-    // --- P3-1: Open Sentinel Chat ---
+    // --- Open Full Conversation ---
 
     context.subscriptions.push(
-        vscode.commands.registerCommand('sentinel.openSentinelChat', () => {
+        vscode.commands.registerCommand('sentinel.openFullConversation', () => {
             return openSentinelChat(stateManager, adapterRegistry, configManager);
         }),
     );
@@ -420,11 +419,11 @@ export function activate(context: vscode.ExtensionContext) {
     const evalEditorPanel = new EvalEditorPanel(context.extensionUri);
     context.subscriptions.push(evalEditorPanel);
 
-    // Wire save → refresh config and eval rules
+    // Wire save → refresh config and evals
     context.subscriptions.push(
         evalEditorPanel.onDidSave(async () => {
             await configManager.load();
-            evalRulesProvider.refresh();
+            evalsProvider.refresh();
         }),
     );
 
@@ -453,12 +452,12 @@ export function activate(context: vscode.ExtensionContext) {
     );
 
     context.subscriptions.push(
-        vscode.commands.registerCommand('sentinel.editEval', async (arg?: EvalRuleTreeItem | DynamicEvalRuleTreeItem | string) => {
+        vscode.commands.registerCommand('sentinel.editEval', async (arg?: EvalTreeItem | DynamicEvalTreeItem | string) => {
             let filePath: string | undefined;
 
             if (typeof arg === 'string') {
                 filePath = arg;
-            } else if (arg instanceof DynamicEvalRuleTreeItem && arg.localEval) {
+            } else if (arg instanceof DynamicEvalTreeItem && arg.localEval) {
                 // Dynamic evals are read-only (rendered from state, not files)
                 const yaml = [
                     'evals:',
@@ -474,7 +473,7 @@ export function activate(context: vscode.ExtensionContext) {
                 ].join('\n');
                 evalEditorPanel.show(yaml, '', { readOnly: true });
                 return;
-            } else if (arg instanceof EvalRuleTreeItem && arg.rule) {
+            } else if (arg instanceof EvalTreeItem && arg.rule) {
                 // Search eval YAML files in the workspace for the rule ID
                 const evalFiles = await vscode.workspace.findFiles(
                     '.volition/sentinel/**/*.yaml',
@@ -513,16 +512,16 @@ export function activate(context: vscode.ExtensionContext) {
     // --- P6-2: Eval Import/Export ---
 
     context.subscriptions.push(
-        vscode.commands.registerCommand('sentinel.exportEval', async (arg?: EvalRuleTreeItem) => {
+        vscode.commands.registerCommand('sentinel.exportEval', async (arg?: EvalTreeItem) => {
             let rule: import('./types/eval-rule.js').EvalRule | undefined;
 
-            if (arg instanceof EvalRuleTreeItem && arg.rule) {
+            if (arg instanceof EvalTreeItem && arg.rule) {
                 rule = arg.rule;
             } else {
-                // Let user pick from available rules
-                const allRules = configManager.getEvalRules();
+                // Let user pick from available evals
+                const allRules = configManager.getEvals();
                 if (allRules.length === 0) {
-                    void vscode.window.showInformationMessage('No eval rules available to export.');
+                    void vscode.window.showInformationMessage('No evals available to export.');
                     return;
                 }
 
@@ -534,7 +533,7 @@ export function activate(context: vscode.ExtensionContext) {
                 }));
 
                 const picked = await vscode.window.showQuickPick(items, {
-                    placeHolder: 'Select an eval rule to export',
+                    placeHolder: 'Select an eval to export',
                 });
 
                 if (!picked) { return; }
@@ -546,7 +545,7 @@ export function activate(context: vscode.ExtensionContext) {
             const uri = await vscode.window.showSaveDialog({
                 defaultUri: vscode.Uri.file(`${rule.id.toLowerCase()}.yaml`),
                 filters: { 'YAML Files': ['yaml', 'yml'] },
-                title: 'Export Eval Rule',
+                title: 'Export Eval',
             });
 
             if (!uri) { return; }
@@ -621,28 +620,12 @@ export function activate(context: vscode.ExtensionContext) {
                 void vscode.window.showInformationMessage(summary);
             }
 
-            // Refresh config and eval rules
+            // Refresh config and evals
             if (succeeded.length > 0) {
                 await configManager.load();
-                evalRulesProvider.refresh();
+                evalsProvider.refresh();
             }
         }),
-    );
-
-    // --- P3-4: Sentinel Conversation Panel ---
-
-    const sentinelConversationPanel = new SentinelConversationPanel(
-        observationStore,
-        stateManager,
-        configManager,
-        adapterRegistry,
-    );
-    context.subscriptions.push(sentinelConversationPanel);
-    context.subscriptions.push(
-        vscode.window.registerWebviewViewProvider(
-            SentinelConversationPanel.viewType,
-            sentinelConversationPanel,
-        ),
     );
 
     // --- Header Panel Webview ---
@@ -686,8 +669,8 @@ export function activate(context: vscode.ExtensionContext) {
 
     /** Recompute highest severity for the current filter scope and update the status bar. */
     function updateStatusBarSeverity(): void {
-        const mode = liveFeedProvider.getViewMode();
-        const sessionFilter = mode === 'all' ? undefined : liveFeedProvider.getSessionFilter();
+        const mode = observationsProvider.getViewMode();
+        const sessionFilter = mode === 'all' ? undefined : observationsProvider.getSessionFilter();
         // In "all" mode, apply a configurable recency window so stale observations
         // don't keep the status bar permanently colored (default 24 hours).
         const maxAgeMs = mode === 'all' ? configManager.getObservationWindowMs() : undefined;
@@ -708,11 +691,11 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Default view mode is 'all'; view mode is ephemeral (not persisted to settings)
     const initialMode: ViewMode = 'all';
-    liveFeedProvider.setViewMode(initialMode);
+    observationsProvider.setViewMode(initialMode);
 
     /** Helper to update session context in the status bar based on current mode. */
     function updateSessionContext(): void {
-        const mode = liveFeedProvider.getViewMode();
+        const mode = observationsProvider.getViewMode();
         switch (mode) {
             case 'all':
                 statusBar.setSessionContext('All');
@@ -728,7 +711,7 @@ export function activate(context: vscode.ExtensionContext) {
                 }).catch(() => { /* non-fatal */ });
                 break;
             case 'pinned': {
-                const pinnedId = liveFeedProvider.getSessionFilter();
+                const pinnedId = observationsProvider.getSessionFilter();
                 statusBar.setSessionContext('Pinned');
                 if (pinnedId) {
                     resolveSessionTitle(pinnedId, stateManager, sessionCorrelator).then((title) => {
@@ -739,12 +722,12 @@ export function activate(context: vscode.ExtensionContext) {
             }
         }
 
-        // Align Session Health recency window with the status bar
+        // Align Insights recency window with the status bar
         const maxAgeMs = mode === 'all' ? configManager.getObservationWindowMs() : undefined;
-        sessionHealthProvider.setMaxAge(maxAgeMs);
+        insightsProvider.setMaxAge(maxAgeMs);
 
         // Update the header panel with detailed filter info
-        aboutProvider.updateFilterState(mode, liveFeedProvider, sessionCorrelator, stateManager);
+        aboutProvider.updateFilterState(mode, observationsProvider, sessionCorrelator, stateManager);
 
         // Recompute severity for the new scope
         updateStatusBarSeverity();
@@ -753,9 +736,9 @@ export function activate(context: vscode.ExtensionContext) {
     // Subscribe to active session changes → update filter when in 'active' mode
     context.subscriptions.push(
         sessionCorrelator.onActiveSessionChanged((result) => {
-            if (liveFeedProvider.getViewMode() === 'recent') {
-                liveFeedProvider.setSessionFilter(result?.sessionId);
-                sessionHealthProvider.setSessionFilter(result?.sessionId);
+            if (observationsProvider.getViewMode() === 'recent') {
+                observationsProvider.setSessionFilter(result?.sessionId);
+                insightsProvider.setSessionFilter(result?.sessionId);
             }
             updateSessionContext();
         }),
@@ -786,7 +769,7 @@ export function activate(context: vscode.ExtensionContext) {
                 { label: '$(eye) Recent Session', description: recentDescription, mode: 'recent' as ViewMode },
                 { label: '$(pin) Pinned Session', description: 'Pin a specific session', mode: 'pinned' as ViewMode },
             ],
-            { placeHolder: 'Select view mode for the Live Feed' },
+            { placeHolder: 'Select view mode for Observations' },
         );
 
         if (!picked) {
@@ -799,18 +782,18 @@ export function activate(context: vscode.ExtensionContext) {
             // Let user pick which session to pin via sentinel.focusSession
             await vscode.commands.executeCommand('sentinel.focusSession');
             // If focusSession set a filter, switch to pinned mode
-            if (liveFeedProvider.getSessionFilter()) {
-                liveFeedProvider.setViewMode('pinned');
+            if (observationsProvider.getSessionFilter()) {
+                observationsProvider.setViewMode('pinned');
             }
         } else {
-            liveFeedProvider.setViewMode(mode);
+            observationsProvider.setViewMode(mode);
             if (mode === 'all') {
-                liveFeedProvider.setSessionFilter(undefined);
-                sessionHealthProvider.setSessionFilter(undefined);
+                observationsProvider.setSessionFilter(undefined);
+                insightsProvider.setSessionFilter(undefined);
             } else if (mode === 'recent') {
                 const result = await sessionCorrelator.correlateActiveSession();
-                liveFeedProvider.setSessionFilter(result?.sessionId);
-                sessionHealthProvider.setSessionFilter(result?.sessionId);
+                observationsProvider.setSessionFilter(result?.sessionId);
+                insightsProvider.setSessionFilter(result?.sessionId);
             }
         }
 
@@ -845,9 +828,9 @@ export function activate(context: vscode.ExtensionContext) {
         });
 
         if (picked) {
-            liveFeedProvider.setViewMode('pinned');
-            liveFeedProvider.setSessionFilter(picked.sessionId);
-            sessionHealthProvider.setSessionFilter(picked.sessionId);
+            observationsProvider.setViewMode('pinned');
+            observationsProvider.setSessionFilter(picked.sessionId);
+            insightsProvider.setSessionFilter(picked.sessionId);
             updateSessionContext();
         }
     });
@@ -882,7 +865,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     const loadMoreCmd = vscode.commands.registerCommand('sentinel.loadMoreHistory', async (sessionId: string) => {
         if (sessionId) {
-            await liveFeedProvider.loadMoreHistory(sessionId);
+            await observationsProvider.loadMoreHistory(sessionId);
         }
     });
     context.subscriptions.push(loadMoreCmd);
@@ -939,10 +922,10 @@ export function activate(context: vscode.ExtensionContext) {
         workspaceManager.onActiveSessionChanged(async () => {
             await sessionCorrelator.onActiveSessionFileChanged();
             // If in "recent" view mode, update filters from the correlator's current result
-            if (liveFeedProvider.getViewMode() === 'recent') {
+            if (observationsProvider.getViewMode() === 'recent') {
                 const result = sessionCorrelator.getCurrentSession();
-                liveFeedProvider.setSessionFilter(result?.sessionId);
-                sessionHealthProvider.setSessionFilter(result?.sessionId);
+                observationsProvider.setSessionFilter(result?.sessionId);
+                insightsProvider.setSessionFilter(result?.sessionId);
                 updateSessionContext();
             }
         }),
@@ -972,16 +955,15 @@ export function activate(context: vscode.ExtensionContext) {
     return {
         statusBar,
         observationStore,
-        liveFeedProvider,
+        observationsProvider,
         sessionCorrelator,
         stateManager,
         healthAssessor,
         configManager,
-        sessionHealthProvider,
-        evalRulesProvider,
+        insightsProvider,
+        evalsProvider,
         adapterRegistry,
         harnessConfigResolver,
-        sentinelConversationPanel,
     };
 }
 
