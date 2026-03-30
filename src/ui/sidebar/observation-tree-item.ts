@@ -124,6 +124,15 @@ export class SessionGroupTreeItem extends vscode.TreeItem {
         if (extensionUri) {
             this.iconPath = vscode.Uri.joinPath(extensionUri, 'media', 'icons', meta.iconFile);
         }
+
+        // Clicking a session group header navigates to that Claude Code conversation
+        if (sessionId) {
+            this.command = {
+                command: 'sentinel.navigateToSession',
+                title: 'Navigate to Session',
+                arguments: [sessionId],
+            };
+        }
     }
 
     /**

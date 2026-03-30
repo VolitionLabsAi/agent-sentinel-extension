@@ -62,7 +62,7 @@ export class ObservationsProvider implements vscode.TreeDataProvider<FeedItem>, 
     private readonly disposables: vscode.Disposable[] = [];
     private sessionFilter: string | undefined;
     private viewMode: ViewMode = 'recent';
-    private groupBySession = false;
+    private groupBySession = true;
 
     /**
      * Historical observations loaded from disk, keyed by session ID.
@@ -94,6 +94,9 @@ export class ObservationsProvider implements vscode.TreeDataProvider<FeedItem>, 
             this._onDidChangeTreeData.fire();
         }, 250);
         this.disposables.push(this._onDidChangeTreeData);
+
+        // Set initial context for group-by-session mode
+        void vscode.commands.executeCommand('setContext', 'sentinel.groupBySession', this.groupBySession);
 
         // Auto-refresh when new observations arrive
         this.disposables.push(

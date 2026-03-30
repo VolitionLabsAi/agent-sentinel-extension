@@ -116,6 +116,7 @@ const vscodeMock = {
             // Store handler for potential invocation in tests
             return { dispose: () => {} };
         },
+        executeCommand: () => Promise.resolve(),
     },
     window: {
         tabGroups: {
