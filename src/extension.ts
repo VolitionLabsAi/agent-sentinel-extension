@@ -149,23 +149,68 @@ export function activate(context: vscode.ExtensionContext) {
         }),
     );
 
-    // --- Placeholder commands (declared in package.json, implemented in a future release) ---
+    // --- sentinel.status command ---
 
-    const placeholderCommands = [
-        { id: 'sentinel.status', label: 'Show Status' },
-        { id: 'sentinel.openObservations', label: 'Open Observations' },
-        { id: 'sentinel.init', label: 'Initialize Configuration' },
-    ];
-
-    for (const { id, label } of placeholderCommands) {
-        context.subscriptions.push(
-            vscode.commands.registerCommand(id, () => {
+    context.subscriptions.push(
+        vscode.commands.registerCommand('sentinel.status', async () => {
+            const folder = vscode.workspace.workspaceFolders?.[0];
+            if (!folder) {
+                void vscode.window.showErrorMessage('Sentinel: No workspace folder open.');
+                return;
+            }
+            const result = await cli.execSentinel(['status'], folder.uri.fsPath);
+            if (result.exitCode === 0 && result.json) {
+                const status = result.json as Record<string, unknown>;
+                const state = (status.state as string) ?? 'unknown';
+                const sessions = Array.isArray(status.sessions) ? status.sessions.length : 0;
                 void vscode.window.showInformationMessage(
-                    `Sentinel: ${label} — coming in a future release.`,
+                    `Sentinel: ${state} — ${sessions} session(s) tracked.`,
                 );
-            }),
-        );
-    }
+            } else if (result.exitCode === 0) {
+                void vscode.window.showInformationMessage('Sentinel: No active monitoring state.');
+            } else {
+                void vscode.window.showErrorMessage(
+                    `Sentinel status failed (exit ${result.exitCode}): ${result.stderr || result.stdout}`,
+                );
+            }
+        }),
+    );
+
+    // --- sentinel.openObservations command ---
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('sentinel.openObservations', () => {
+            void vscode.commands.executeCommand('sentinel.observations.focus');
+        }),
+    );
+
+    // --- sentinel.init command ---
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('sentinel.init', async () => {
+            const folder = vscode.workspace.workspaceFolders?.[0];
+            if (!folder) {
+                void vscode.window.showErrorMessage('Sentinel: No workspace folder open.');
+                return;
+            }
+            const result = await cli.execSentinel(['init'], folder.uri.fsPath);
+            if (result.exitCode === 0) {
+                void vscode.window.showInformationMessage('Sentinel: Configuration initialized successfully.');
+                // Open the newly created config file
+                const configPath = sentinelPaths(folder).config;
+                try {
+                    const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(configPath));
+                    await vscode.window.showTextDocument(doc);
+                } catch {
+                    // Config may not exist if init had nothing to create
+                }
+            } else {
+                void vscode.window.showErrorMessage(
+                    `Sentinel init failed (exit ${result.exitCode}): ${result.stderr || result.stdout}`,
+                );
+            }
+        }),
+    );
 
     // --- Observation Store & Observations ---
 
