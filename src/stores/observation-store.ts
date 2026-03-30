@@ -446,7 +446,7 @@ export class ObservationStore implements vscode.Disposable {
 
         for (const sessionObs of sources) {
             for (const obs of sessionObs) {
-                if (maxAgeMs !== undefined && new Date(obs.timestamp).getTime() <= cutoff) {
+                if (maxAgeMs !== undefined && new Date(obs.timestamp).getTime() < cutoff) {
                     continue;
                 }
                 if (!mostRecentObs || obs.timestamp > mostRecentObs.timestamp) {
@@ -541,7 +541,7 @@ export class ObservationStore implements vscode.Disposable {
 
         for (const sessionObs of sources) {
             for (const obs of sessionObs) {
-                if (new Date(obs.timestamp).getTime() > cutoff) {
+                if (new Date(obs.timestamp).getTime() >= cutoff) {
                     const sev = obs.severity as 'info' | 'warning' | 'critical';
                     if (sev in result) {
                         result[sev]++;

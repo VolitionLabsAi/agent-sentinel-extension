@@ -655,4 +655,36 @@ suite('ObservationStore', () => {
     test('getMostRecentSeverity returns undefined for unknown session', () => {
         assert.strictEqual(store.getMostRecentSeverity('nonexistent-session'), undefined);
     });
+
+    test('getMostRecentSeverity and getSeverityCounts include observation at exact cutoff boundary', async () => {
+        const filePath = path.join(tmpDir, 'obs.jsonl');
+
+        // Create an observation exactly at the 2-hour mark before a captured 'now'.
+        // This mirrors the tree-view filter using >= (inclusive boundary).
+        const twoHoursMs = 2 * 60 * 60 * 1000;
+        const capturedNow = Date.now();
+        const boundaryTimestamp = new Date(capturedNow - twoHoursMs).toISOString();
+
+        writeObservations(filePath, [
+            makeObservation({ session_id: 'sess-1', severity: 'warning', timestamp: boundaryTimestamp }),
+        ]);
+
+        store.addFolder('folder1', filePath);
+        await store.load();
+
+        // getObservations uses >= (inclusive): observation at exact since boundary IS included.
+        const byFilter = store.getObservations({ since: boundaryTimestamp });
+        assert.strictEqual(byFilter.length, 1, 'getObservations should include observation at exact since boundary');
+
+        // getSeverityCounts and getMostRecentSeverity must behave consistently.
+        // We add 1 000 ms to the window to absorb real-time clock advance between
+        // capturedNow and each internal Date.now() call, keeping the observation
+        // firmly inside the window while confirming the >= boundary is honoured.
+        const windowMs = twoHoursMs + 1000;
+        const counts = store.getSeverityCounts(undefined, windowMs);
+        assert.strictEqual(counts.warning, 1, 'getSeverityCounts should include observation at cutoff boundary');
+
+        const severity = store.getMostRecentSeverity(undefined, windowMs);
+        assert.strictEqual(severity, 'warning', 'getMostRecentSeverity should include observation at cutoff boundary');
+    });
 });

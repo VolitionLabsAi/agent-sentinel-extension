@@ -48,7 +48,11 @@ export async function extractTranscriptTitle(transcriptPath: string): Promise<st
             const tailBuffer = Buffer.alloc(tailSize);
             const { bytesRead: tailRead } = await fileHandle.read(tailBuffer, 0, tailSize, tailOffset);
             const tailChunk = tailBuffer.toString('utf-8', 0, tailRead);
-            const tailTitle = scanChunkForTitle(tailChunk);
+
+            // For tail buffer, skip first line (likely partial/truncated at the read boundary)
+            const tailLines = tailChunk.split('\n');
+            tailLines.shift(); // remove potentially truncated first line
+            const tailTitle = scanChunkForTitle(tailLines.join('\n'));
             if (tailTitle) {
                 return tailTitle;
             }
