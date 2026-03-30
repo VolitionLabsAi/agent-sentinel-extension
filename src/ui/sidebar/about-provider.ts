@@ -354,9 +354,12 @@ export class AboutProvider implements vscode.WebviewViewProvider {
                 var elapsed = Date.now() - new Date(timestamp).getTime();
                 var seconds = Math.floor(elapsed / 1000);
                 var text, colorClass;
-                if (seconds < 60) { text = seconds + 's ago'; }
-                else if (seconds < 3600) { text = Math.floor(seconds / 60) + 'm ago'; }
-                else { text = Math.floor(seconds / 3600) + 'h ago'; }
+                if (seconds < 60) { text = '< 1m ago'; }
+                else if (seconds < 300) { text = '< 5m ago'; }
+                else if (seconds < 900) { text = '< 15m ago'; }
+                else if (seconds < 3600) { text = '< 1h ago'; }
+                else if (seconds < 86400) { text = '~' + Math.round(seconds / 3600) + 'h ago'; }
+                else { text = '~' + Math.round(seconds / 86400) + 'd ago'; }
                 if (seconds < 120) { colorClass = 'fresh'; }
                 else if (seconds < 600) { colorClass = 'recent'; }
                 else { colorClass = 'stale'; }
