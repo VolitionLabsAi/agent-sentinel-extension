@@ -135,7 +135,7 @@ export class SessionHealthProvider implements vscode.WebviewViewProvider, vscode
             }
         }
 
-        const failureRate = evalCount > 0 ? (failures / evalCount) * 100 : 0;
+        const corrections = failures;
         const avgDurationMs = evalCount > 0 ? totalDuration / evalCount : 0;
 
         // Latency trend (last N observations, chronological order)
@@ -154,7 +154,7 @@ export class SessionHealthProvider implements vscode.WebviewViewProvider, vscode
 
         const data: HealthViewData = {
             type: 'healthUpdate',
-            summary: { evalCount, failureRate, dynamicRulesCount, avgDurationMs },
+            summary: { evalCount, corrections, dynamicRulesCount, avgDurationMs },
             severity: { critical, warning, info },
             latencyTrend,
             timeline,

@@ -6,8 +6,8 @@
 export interface HealthSummaryMetrics {
     /** Total number of evaluations in the current session/filter. */
     evalCount: number;
-    /** Failure rate as a percentage (0-100). Failures = critical + warning. */
-    failureRate: number;
+    /** Count of critical + warning observations. */
+    corrections: number;
     /** Number of dynamic eval rules created during the session. */
     dynamicRulesCount: number;
     /** Average evaluation duration in milliseconds. */

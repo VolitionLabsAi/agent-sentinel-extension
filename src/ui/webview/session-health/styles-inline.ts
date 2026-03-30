@@ -59,18 +59,6 @@ body {
     margin-top: var(--health-spacing-xs);
 }
 
-.metric-value.rate-ok {
-    color: var(--vscode-charts-green, #89d185);
-}
-
-.metric-value.rate-warn {
-    color: var(--vscode-charts-yellow, #cca700);
-}
-
-.metric-value.rate-critical {
-    color: var(--vscode-charts-red, #f44747);
-}
-
 .section {
     margin-bottom: var(--health-spacing-lg);
 }

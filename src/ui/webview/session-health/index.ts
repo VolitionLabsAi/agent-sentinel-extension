@@ -33,9 +33,9 @@ export function getSessionHealthHtml(nonce: string, cspSource: string): string {
                     <span class="metric-value" id="eval-count">0</span>
                     <span class="metric-label">Evaluations</span>
                 </div>
-                <div class="metric-card" tabindex="0" aria-label="Failure rate">
-                    <span class="metric-value" id="failure-rate">0%</span>
-                    <span class="metric-label">Failure Rate</span>
+                <div class="metric-card" tabindex="0" aria-label="Corrections count">
+                    <span class="metric-value" id="corrections">0</span>
+                    <span class="metric-label">Corrections</span>
                 </div>
                 <div class="metric-card" tabindex="0" aria-label="Dynamic rules count">
                     <span class="metric-value" id="dynamic-rules">0</span>
@@ -83,10 +83,7 @@ export function getSessionHealthHtml(nonce: string, cspSource: string): string {
                 // Update metrics
                 document.getElementById('eval-count').textContent = String(data.summary.evalCount);
 
-                const rateEl = document.getElementById('failure-rate');
-                const rate = data.summary.failureRate;
-                rateEl.textContent = Math.round(rate) + '%';
-                rateEl.className = 'metric-value ' + (rate === 0 ? 'rate-ok' : rate < 20 ? 'rate-warn' : 'rate-critical');
+                document.getElementById('corrections').textContent = String(data.summary.corrections);
 
                 document.getElementById('dynamic-rules').textContent = String(data.summary.dynamicRulesCount);
                 const ms = data.summary.avgDurationMs;
