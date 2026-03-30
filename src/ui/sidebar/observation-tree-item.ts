@@ -95,3 +95,50 @@ export class ObservationDetailItem extends vscode.TreeItem {
         this.iconPath = new vscode.ThemeIcon('dash');
     }
 }
+
+/** Severity priority for determining highest severity in a group. */
+const SEVERITY_PRIORITY: Record<string, number> = {
+    critical: 0,
+    warning: 1,
+    info: 2,
+};
+
+/**
+ * A group tree item representing a session that contains observations.
+ * Used when "Group by Session" mode is active.
+ */
+export class SessionGroupTreeItem extends vscode.TreeItem {
+    constructor(
+        public readonly sessionId: string,
+        sessionLabel: string,
+        observationCount: number,
+        highestSeverity: string,
+    ) {
+        super(sessionLabel, vscode.TreeItemCollapsibleState.Expanded);
+
+        this.description = `${observationCount} observation${observationCount === 1 ? '' : 's'}`;
+        this.contextValue = 'observationGroup';
+
+        // Use the icon for the highest severity in this session's observations
+        const meta = SEVERITY_META[highestSeverity] ?? STATUS_META;
+        if (extensionUri) {
+            this.iconPath = vscode.Uri.joinPath(extensionUri, 'media', 'icons', meta.iconFile);
+        }
+    }
+
+    /**
+     * Determine the highest severity from a list of observations.
+     */
+    static highestSeverityOf(observations: PersistentObservation[]): string {
+        let best = 'info';
+        let bestPri = SEVERITY_PRIORITY[best] ?? 999;
+        for (const obs of observations) {
+            const pri = SEVERITY_PRIORITY[obs.severity] ?? 999;
+            if (pri < bestPri) {
+                best = obs.severity;
+                bestPri = pri;
+            }
+        }
+        return best;
+    }
+}

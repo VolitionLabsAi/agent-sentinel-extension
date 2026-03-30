@@ -2,10 +2,10 @@ import * as vscode from 'vscode';
 import { ObservationStore } from '../../stores/observation-store.js';
 import { StateManager } from '../../stores/state-manager.js';
 import { PersistentObservation } from '../../types/observation.js';
-import { ObservationTreeItem, ObservationDetailItem } from './observation-tree-item.js';
+import { ObservationTreeItem, ObservationDetailItem, SessionGroupTreeItem } from './observation-tree-item.js';
 import { Debouncer } from '../../utils/debouncer.js';
 
-type FeedItem = ObservationTreeItem | ObservationDetailItem | LoadMoreTreeItem | EndOfHistoryTreeItem;
+type FeedItem = ObservationTreeItem | ObservationDetailItem | LoadMoreTreeItem | EndOfHistoryTreeItem | SessionGroupTreeItem;
 
 export type ViewMode = 'all' | 'recent' | 'pinned';
 
@@ -62,6 +62,7 @@ export class ObservationsProvider implements vscode.TreeDataProvider<FeedItem>, 
     private readonly disposables: vscode.Disposable[] = [];
     private sessionFilter: string | undefined;
     private viewMode: ViewMode = 'recent';
+    private groupBySession = false;
 
     /**
      * Historical observations loaded from disk, keyed by session ID.
@@ -131,6 +132,18 @@ export class ObservationsProvider implements vscode.TreeDataProvider<FeedItem>, 
     /** Get the current session filter value. */
     getSessionFilter(): string | undefined {
         return this.sessionFilter;
+    }
+
+    /** Whether group-by-session mode is active. */
+    isGroupBySession(): boolean {
+        return this.groupBySession;
+    }
+
+    /** Toggle group-by-session mode and refresh. */
+    toggleGroupBySession(): void {
+        this.groupBySession = !this.groupBySession;
+        void vscode.commands.executeCommand('setContext', 'sentinel.groupBySession', this.groupBySession);
+        this.refresh();
     }
 
     /**
@@ -203,7 +216,23 @@ export class ObservationsProvider implements vscode.TreeDataProvider<FeedItem>, 
             return [];
         }
 
-        // Root level — return observations newest-first
+        // Session group children: return that session's observations
+        if (element instanceof SessionGroupTreeItem) {
+            return this.getSessionGroupChildren(element);
+        }
+
+        // Root level
+        if (this.groupBySession) {
+            return this.getGroupedRoot();
+        }
+
+        return this.getFlatRoot();
+    }
+
+    /**
+     * Flat root: current behavior — observations newest-first.
+     */
+    private getFlatRoot(): FeedItem[] {
         const observations = this.store.getObservations(
             this.sessionFilter ? { sessionId: this.sessionFilter } : undefined,
         );
@@ -228,46 +257,146 @@ export class ObservationsProvider implements vscode.TreeDataProvider<FeedItem>, 
 
         // Historical observations (loaded from disk), appended after in-memory
         if (this.sessionFilter) {
-            const historical = this.historicalObservations.get(this.sessionFilter) ?? [];
-            for (const obs of historical) {
-                const sessionLabel = this.getSessionLabel(obs.session_id);
-                const item = new ObservationTreeItem(obs, sessionLabel);
-                if (showSessionLabel) {
-                    item.description = `${item.description ?? ''}  \u27E8${sessionLabel}\u27E9`;
-                }
-                items.push(item);
-            }
-
-            // Add load-more or end-of-history marker
-            if (this.loadingHistory.has(this.sessionFilter)) {
-                const loadingItem = new vscode.TreeItem('Loading...', vscode.TreeItemCollapsibleState.None);
-                loadingItem.iconPath = new vscode.ThemeIcon('loading~spin');
-                loadingItem.description = 'Fetching older observations';
-                items.push(loadingItem as FeedItem);
-            } else if (this.historyExhausted.has(this.sessionFilter)) {
-                if (historical.length > 0 || this.store.hasMoreHistory(this.sessionFilter)) {
-                    items.push(new EndOfHistoryTreeItem());
-                }
-            } else if (this.store.hasMoreHistory(this.sessionFilter)) {
-                items.push(new LoadMoreTreeItem(this.sessionFilter));
-            }
+            this.appendHistoryItems(items, this.sessionFilter, showSessionLabel);
         } else if (this.viewMode === 'all') {
-            // In "all" mode, check each session for history
-            // Only show a single "Load More" if any session has more history
-            // (in all mode, historical browsing is session-filtered — guide the user)
-            const sessionsWithHistory = this.getSessionsWithHistory();
-            if (sessionsWithHistory.length > 0) {
-                const hint = new vscode.TreeItem(
-                    'Pin a session to browse history',
-                    vscode.TreeItemCollapsibleState.None,
-                );
-                hint.iconPath = new vscode.ThemeIcon('pin');
-                hint.description = `${sessionsWithHistory.length} session(s) have older observations`;
-                items.push(hint as FeedItem);
-            }
+            this.appendAllModeHint(items);
         }
 
         return items;
+    }
+
+    /**
+     * Grouped root: return SessionGroupTreeItem[] — one per session, ordered by most recent observation.
+     */
+    private getGroupedRoot(): FeedItem[] {
+        const observations = this.store.getObservations(
+            this.sessionFilter ? { sessionId: this.sessionFilter } : undefined,
+        );
+
+        if (observations.length === 0 && !this.hasAnyHistory()) {
+            return [this.createEmptyStateItem()];
+        }
+
+        // Group observations by session, tracking latest timestamp per session
+        const sessionObsMap = new Map<string, PersistentObservation[]>();
+        const sessionLatest = new Map<string, string>();
+
+        for (const obs of observations) {
+            const arr = sessionObsMap.get(obs.session_id);
+            if (arr) {
+                arr.push(obs);
+            } else {
+                sessionObsMap.set(obs.session_id, [obs]);
+            }
+            const existing = sessionLatest.get(obs.session_id);
+            if (!existing || obs.timestamp > existing) {
+                sessionLatest.set(obs.session_id, obs.timestamp);
+            }
+        }
+
+        // Include historical observations in counts
+        for (const [sid, historical] of this.historicalObservations) {
+            if (this.sessionFilter && sid !== this.sessionFilter) { continue; }
+            const arr = sessionObsMap.get(sid) ?? [];
+            // Don't push historical into sessionObsMap — they'll be returned in getSessionGroupChildren
+            if (!sessionObsMap.has(sid)) {
+                sessionObsMap.set(sid, []);
+            }
+            // Update count to include historical
+            const totalCount = arr.length + historical.length;
+            // Store adjusted count — we'll read from sessionObsMap + historicalObservations in children
+            // Just ensure the session is represented
+            if (!sessionLatest.has(sid) && historical.length > 0) {
+                sessionLatest.set(sid, historical[0].timestamp);
+            }
+            // Replace for count purposes — sessionObsMap still only has in-memory
+            void totalCount;
+        }
+
+        // Sort sessions by most-recent observation (descending)
+        const sortedSessions = [...sessionObsMap.keys()].sort((a, b) => {
+            const ta = sessionLatest.get(a) ?? '';
+            const tb = sessionLatest.get(b) ?? '';
+            return tb.localeCompare(ta);
+        });
+
+        return sortedSessions.map(sid => {
+            const inMemory = sessionObsMap.get(sid) ?? [];
+            const historical = (this.sessionFilter === sid || !this.sessionFilter)
+                ? (this.historicalObservations.get(sid) ?? [])
+                : [];
+            const totalCount = inMemory.length + historical.length;
+            const allObs = [...inMemory, ...historical];
+            const severity = SessionGroupTreeItem.highestSeverityOf(allObs);
+            const label = this.getSessionLabel(sid);
+            return new SessionGroupTreeItem(sid, label, totalCount, severity);
+        });
+    }
+
+    /**
+     * Children of a SessionGroupTreeItem: that session's observations newest-first,
+     * plus historical and load-more items.
+     */
+    private getSessionGroupChildren(group: SessionGroupTreeItem): FeedItem[] {
+        const sid = group.sessionId;
+        const observations = this.store.getObservations({ sessionId: sid });
+        const items: FeedItem[] = [];
+
+        // In-memory observations, newest first
+        for (let i = observations.length - 1; i >= 0; i--) {
+            const obs = observations[i];
+            const sessionLabel = this.getSessionLabel(obs.session_id);
+            items.push(new ObservationTreeItem(obs, sessionLabel));
+        }
+
+        // Historical + load-more/end-of-history within this group
+        this.appendHistoryItems(items, sid, false);
+
+        return items;
+    }
+
+    /**
+     * Append historical observations, loading indicator, and end-of-history markers for a session.
+     */
+    private appendHistoryItems(items: FeedItem[], sessionId: string, showSessionLabel: boolean): void {
+        const historical = this.historicalObservations.get(sessionId) ?? [];
+        for (const obs of historical) {
+            const sessionLabel = this.getSessionLabel(obs.session_id);
+            const item = new ObservationTreeItem(obs, sessionLabel);
+            if (showSessionLabel) {
+                item.description = `${item.description ?? ''}  \u27E8${sessionLabel}\u27E9`;
+            }
+            items.push(item);
+        }
+
+        if (this.loadingHistory.has(sessionId)) {
+            const loadingItem = new vscode.TreeItem('Loading...', vscode.TreeItemCollapsibleState.None);
+            loadingItem.iconPath = new vscode.ThemeIcon('loading~spin');
+            loadingItem.description = 'Fetching older observations';
+            items.push(loadingItem as FeedItem);
+        } else if (this.historyExhausted.has(sessionId)) {
+            if (historical.length > 0 || this.store.hasMoreHistory(sessionId)) {
+                items.push(new EndOfHistoryTreeItem());
+            }
+        } else if (this.store.hasMoreHistory(sessionId)) {
+            items.push(new LoadMoreTreeItem(sessionId));
+        }
+    }
+
+    /**
+     * Append the "Pin a session to browse history" hint in all-mode flat view.
+     */
+    private appendAllModeHint(items: FeedItem[]): void {
+        const sessionsWithHistory = this.getSessionsWithHistory();
+        if (sessionsWithHistory.length > 0) {
+            const hint = new vscode.TreeItem(
+                'Pin a session to browse history',
+                vscode.TreeItemCollapsibleState.None,
+            );
+            hint.iconPath = new vscode.ThemeIcon('pin');
+            hint.description = `${sessionsWithHistory.length} session(s) have older observations`;
+            items.push(hint as FeedItem);
+        }
     }
 
     /**

@@ -862,6 +862,13 @@ export function activate(context: vscode.ExtensionContext) {
     });
     context.subscriptions.push(navigateCmd);
 
+    // --- Group by Session Toggle ---
+
+    const toggleGroupCmd = vscode.commands.registerCommand('sentinel.toggleGroupBySession', () => {
+        observationsProvider.toggleGroupBySession();
+    });
+    context.subscriptions.push(toggleGroupCmd);
+
     // --- P2-6: Historical Observation Browsing ---
 
     const loadMoreCmd = vscode.commands.registerCommand('sentinel.loadMoreHistory', async (sessionId: string) => {

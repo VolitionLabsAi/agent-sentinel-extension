@@ -136,6 +136,11 @@
         "command": "sentinel.importEval",
         "title": "Sentinel: Import Eval",
         "icon": "$(cloud-download)"
+      },
+      {
+        "command": "sentinel.toggleGroupBySession",
+        "title": "Sentinel: Toggle Group by Session",
+        "icon": "$(list-tree)"
       }
     ],
     "menus": {
@@ -165,6 +170,11 @@
         {
           "command": "sentinel.steerSentinel",
           "when": "view == sentinel.evals",
+          "group": "navigation"
+        },
+        {
+          "command": "sentinel.toggleGroupBySession",
+          "when": "view == sentinel.observations",
           "group": "navigation"
         }
       ],
