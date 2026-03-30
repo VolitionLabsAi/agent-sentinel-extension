@@ -22,6 +22,7 @@ export class SessionHealthProvider implements vscode.WebviewViewProvider, vscode
     private view: vscode.WebviewView | undefined;
     private readonly disposables: vscode.Disposable[] = [];
     private sessionFilter: string | undefined;
+    private maxAgeMs: number | undefined;
     private readonly updateDebouncer: Debouncer;
 
     constructor(
@@ -39,6 +40,12 @@ export class SessionHealthProvider implements vscode.WebviewViewProvider, vscode
     /** Set session filter (undefined = all sessions). */
     setSessionFilter(sessionId: string | undefined): void {
         this.sessionFilter = sessionId;
+        this.update();
+    }
+
+    /** Set a recency window so the panel matches the status bar's time filter. */
+    setMaxAge(maxAgeMs: number | undefined): void {
+        this.maxAgeMs = maxAgeMs;
         this.update();
     }
 
@@ -94,8 +101,11 @@ export class SessionHealthProvider implements vscode.WebviewViewProvider, vscode
             return;
         }
 
+        const filter: import('../../stores/observation-store.js').ObservationFilter = {};
+        if (this.sessionFilter) filter.sessionId = this.sessionFilter;
+        if (this.maxAgeMs) filter.since = new Date(Date.now() - this.maxAgeMs).toISOString();
         const observations = this.store.getObservations(
-            this.sessionFilter ? { sessionId: this.sessionFilter } : undefined,
+            Object.keys(filter).length > 0 ? filter : undefined,
         );
 
         const evalCount = observations.length;

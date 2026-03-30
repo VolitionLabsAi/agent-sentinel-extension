@@ -67,6 +67,10 @@
         "icon": "$(filter)"
       },
       {
+        "command": "sentinel.showSessionHealth",
+        "title": "Sentinel: Show Session Health"
+      },
+      {
         "command": "sentinel.navigateToSession",
         "title": "Sentinel: Navigate to Session"
       },

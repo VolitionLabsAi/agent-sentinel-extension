@@ -230,6 +230,14 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.registerWebviewViewProvider(SessionHealthProvider.viewType, sessionHealthProvider),
     );
 
+    // --- Show Session Health (status bar click) ---
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('sentinel.showSessionHealth', () => {
+            void vscode.commands.executeCommand('sentinel.sessionHealth.focus');
+        }),
+    );
+
     // --- Eval Rules Tree View ---
 
     const evalRulesProvider = new EvalRulesProvider(configManager, observationStore, stateManager);
@@ -730,6 +738,10 @@ export function activate(context: vscode.ExtensionContext) {
                 break;
             }
         }
+
+        // Align Session Health recency window with the status bar
+        const maxAgeMs = mode === 'all' ? 2 * 60 * 60 * 1000 : undefined;
+        sessionHealthProvider.setMaxAge(maxAgeMs);
 
         // Update the header panel with detailed filter info
         aboutProvider.updateFilterState(mode, liveFeedProvider, sessionCorrelator, stateManager);

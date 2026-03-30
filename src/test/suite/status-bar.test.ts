@@ -205,10 +205,10 @@ suite('StatusBarManager', () => {
         assert.ok(tooltip.value.includes('3 info'), 'Tooltip should include info count');
     });
 
-    test('tooltip includes click hint for view mode', () => {
+    test('tooltip includes click hint for Session Health', () => {
         const internal = manager as unknown as StatusBarManagerTestable;
         const tooltip = internal.item.tooltip as vscode.MarkdownString;
-        assert.ok(tooltip.value.includes('click to change view mode'), 'Tooltip should include view mode hint');
+        assert.ok(tooltip.value.includes('click to open Session Health'), 'Tooltip should include Session Health hint');
     });
 
     // ── Dispose ──────────────────────────────────────────────
