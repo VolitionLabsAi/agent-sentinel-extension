@@ -16,7 +16,7 @@ import { SETTING_ID_TO_HARNESS_NAME } from '../adapters/constants.js';
  * 2. If multiple harnesses are available, present a QuickPick to the user.
  * 3. Falls back to the first available adapter in the registry.
  */
-export async function openSentinelChat(
+export async function openFullConversation(
     stateManager: StateManager,
     adapterRegistry: HarnessAdapterRegistry,
     configManager?: ConfigManager,
@@ -59,7 +59,7 @@ export async function openSentinelChat(
 
         const pick = await vscode.window.showQuickPick(items, {
             placeHolder: 'Select a sentinel to open',
-            title: 'Open Sentinel Chat',
+            title: 'Sentinel Conversation',
         });
 
         if (!pick) {

@@ -1,5 +1,5 @@
 /**
- * Inline CSS for the Session Health webview.
+ * Inline CSS for the Insights webview.
  * Exported as a string constant so it can be embedded directly in the HTML
  * without requiring file system access from the webview.
  *

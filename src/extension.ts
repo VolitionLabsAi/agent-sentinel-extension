@@ -21,7 +21,7 @@ import { ClaudeCodeAdapter } from './adapters/claude-code-adapter.js';
 import { GeminiCLIAdapter } from './adapters/gemini-cli-adapter.js';
 import { CopilotAdapter } from './adapters/copilot-adapter.js';
 import { CodexCLIAdapter } from './adapters/codex-cli-adapter.js';
-import { openSentinelChat } from './commands/open-sentinel-chat.js';
+import { openFullConversation } from './commands/open-sentinel-chat.js';
 import { EvalCreationPanel } from './ui/webview/eval-creation/panel.js';
 import { EvalEditorPanel } from './ui/webview/eval-editor/panel.js';
 import { steerSentinel } from './commands/steer-sentinel.js';
@@ -396,7 +396,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         vscode.commands.registerCommand('sentinel.openFullConversation', () => {
-            return openSentinelChat(stateManager, adapterRegistry, configManager);
+            return openFullConversation(stateManager, adapterRegistry, configManager);
         }),
     );
 

@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { getSessionHealthHtml } from '../../ui/webview/session-health/index';
+import { getInsightsHtml } from '../../ui/webview/session-health/index';
 import { STYLES as SESSION_HEALTH_STYLES } from '../../ui/webview/session-health/styles-inline';
 import { OBSERVATION_CARD_STYLES } from '../../ui/webview/observation-card/styles';
 import { buildObservationCardHtml } from '../../ui/webview/observation-card/template';
@@ -73,13 +73,13 @@ function findHardcodedColors(text: string): string[] {
 suite('WCAG 2.1 AA Compliance', () => {
 
     test('session health webview uses VS Code theme variables for all colors', () => {
-        const html = getSessionHealthHtml('test-nonce', 'https://test.vscode-resource.vscode-cdn.net');
+        const html = getInsightsHtml('test-nonce', 'https://test.vscode-resource.vscode-cdn.net');
         const hardcoded = findHardcodedColors(html);
 
         assert.deepStrictEqual(
             hardcoded,
             [],
-            `Session health webview contains hardcoded colors (outside var() fallbacks): ${hardcoded.join(', ')}`,
+            `Insights webview contains hardcoded colors (outside var() fallbacks): ${hardcoded.join(', ')}`,
         );
     });
 
@@ -149,10 +149,10 @@ suite('WCAG 2.1 AA Compliance', () => {
     });
 
     test('webviews include prefers-reduced-motion support', () => {
-        // Session health styles
+        // Insights styles
         assert.ok(
             SESSION_HEALTH_STYLES.includes('@media (prefers-reduced-motion: reduce)'),
-            'Session health CSS missing @media (prefers-reduced-motion: reduce)',
+            'Insights CSS missing @media (prefers-reduced-motion: reduce)',
         );
 
         // Observation card styles
@@ -163,14 +163,14 @@ suite('WCAG 2.1 AA Compliance', () => {
     });
 
     test('interactive elements have visible focus indicators', () => {
-        // Session health styles — metric cards and chart containers are focusable
+        // Insights styles — metric cards and chart containers are focusable
         assert.ok(
             SESSION_HEALTH_STYLES.includes(':focus-visible'),
-            'Session health CSS missing :focus-visible styles',
+            'Insights CSS missing :focus-visible styles',
         );
         assert.ok(
             SESSION_HEALTH_STYLES.includes('--vscode-focusBorder'),
-            'Session health CSS focus indicator should use VS Code theme focus border',
+            'Insights CSS focus indicator should use VS Code theme focus border',
         );
 
         // Observation card styles
@@ -301,22 +301,22 @@ suite('WCAG 2.1 AA Compliance', () => {
         );
     });
 
-    // ── Session Health aria-live ──────────────────────────────
+    // ── Insights aria-live ──────────────────────────────
 
     test('session health webview has aria-live for dynamic metric updates', () => {
-        const html = getSessionHealthHtml('test-nonce', 'https://test.vscode-resource.vscode-cdn.net');
+        const html = getInsightsHtml('test-nonce', 'https://test.vscode-resource.vscode-cdn.net');
 
         assert.ok(
             html.includes('aria-live="polite"'),
-            'Session health webview missing aria-live for dynamic metric updates',
+            'Insights webview missing aria-live for dynamic metric updates',
         );
     });
 
     // ── Cross-component: all webviews set lang="en" ──────────
 
     test('all webviews set lang="en" on html element', () => {
-        const sessionHealth = getSessionHealthHtml('test-nonce', 'https://test.vscode-resource.vscode-cdn.net');
-        assert.ok(sessionHealth.includes('lang="en"'), 'Session health webview missing lang="en"');
+        const sessionHealth = getInsightsHtml('test-nonce', 'https://test.vscode-resource.vscode-cdn.net');
+        assert.ok(sessionHealth.includes('lang="en"'), 'Insights webview missing lang="en"');
 
         const obs = makeObservation();
         const cardHtml = renderCard(obs);

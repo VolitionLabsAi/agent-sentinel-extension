@@ -3,7 +3,7 @@ import * as crypto from 'crypto';
 import { ObservationStore } from '../../stores/observation-store.js';
 import { StateManager } from '../../stores/state-manager.js';
 import type { HealthViewData, TimelinePoint } from '../../types/health-metrics.js';
-import { getSessionHealthHtml, renderHealthCharts } from '../webview/session-health/index.js';
+import { getInsightsHtml, renderHealthCharts } from '../webview/session-health/index.js';
 import { Debouncer } from '../../utils/debouncer.js';
 
 const SPARKLINE_WINDOW = 20;
@@ -61,7 +61,7 @@ export class InsightsProvider implements vscode.WebviewViewProvider, vscode.Disp
         };
 
         const nonce = crypto.randomBytes(16).toString('hex');
-        webviewView.webview.html = getSessionHealthHtml(nonce, webviewView.webview.cspSource);
+        webviewView.webview.html = getInsightsHtml(nonce, webviewView.webview.cspSource);
 
         // Send initial data
         this.update();

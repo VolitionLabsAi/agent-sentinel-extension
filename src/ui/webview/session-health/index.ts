@@ -5,12 +5,12 @@ import { renderTimeline } from '../../charts/timeline.js';
 import { STYLES } from './styles-inline.js';
 
 /**
- * Generate the full HTML content for the Session Health webview.
+ * Generate the full HTML content for the Insights webview.
  *
  * @param nonce - CSP nonce for inline scripts
  * @param cspSource - The webview CSP source (`webview.cspSource`)
  */
-export function getSessionHealthHtml(nonce: string, cspSource: string): string {
+export function getInsightsHtml(nonce: string, cspSource: string): string {
     return /* html */ `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -20,7 +20,7 @@ export function getSessionHealthHtml(nonce: string, cspSource: string): string {
     <style nonce="${nonce}">${STYLES}</style>
 </head>
 <body>
-    <div id="health-root" role="region" aria-label="Session Health Dashboard">
+    <div id="health-root" role="region" aria-label="Insights Dashboard">
         <div class="empty-state" id="empty-state">
             <div class="icon" aria-hidden="true">&#x1F6E1;</div>
             <div>Waiting for observations...</div>
