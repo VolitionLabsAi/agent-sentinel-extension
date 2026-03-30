@@ -400,6 +400,19 @@ export class ConfigManager implements vscode.Disposable {
     }
 
     /**
+     * Returns the session severity mode from the first folder's config.
+     * Defaults to 'recent' if not set.
+     */
+    getSessionSeverityMode(): 'recent' | 'highest' {
+        for (const folder of this.folders.values()) {
+            if (folder.config?.session_severity_mode !== undefined) {
+                return folder.config.session_severity_mode;
+            }
+        }
+        return 'recent';
+    }
+
+    /**
      * Returns the base defaults from the first workspace folder's config.
      * Used as tier-3 (lowest priority) in harness config resolution.
      */

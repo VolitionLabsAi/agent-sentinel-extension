@@ -83,6 +83,8 @@ export interface SentinelConfigFile {
     version: string;
     /** Number of hours to look back when filtering observations in "All" mode. Defaults to 24. */
     observation_window_hours?: number;
+    /** How to determine the severity icon for session groups: 'recent' or 'highest'. Defaults to 'recent'. */
+    session_severity_mode?: 'recent' | 'highest';
     defaults: {
         execution: string;
         model: string;

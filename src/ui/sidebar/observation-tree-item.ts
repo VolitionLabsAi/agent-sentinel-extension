@@ -112,15 +112,15 @@ export class SessionGroupTreeItem extends vscode.TreeItem {
         public readonly sessionId: string,
         sessionLabel: string,
         observationCount: number,
-        highestSeverity: string,
+        displaySeverity: string,
     ) {
         super(sessionLabel, vscode.TreeItemCollapsibleState.Expanded);
 
         this.description = `${observationCount} observation${observationCount === 1 ? '' : 's'}`;
         this.contextValue = 'observationGroup';
 
-        // Use the icon for the highest severity in this session's observations
-        const meta = SEVERITY_META[highestSeverity] ?? STATUS_META;
+        // Use the icon for the display severity (determined by caller based on config)
+        const meta = SEVERITY_META[displaySeverity] ?? STATUS_META;
         if (extensionUri) {
             this.iconPath = vscode.Uri.joinPath(extensionUri, 'media', 'icons', meta.iconFile);
         }

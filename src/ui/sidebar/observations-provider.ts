@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { ObservationStore } from '../../stores/observation-store.js';
 import { StateManager } from '../../stores/state-manager.js';
+import { ConfigManager } from '../../stores/config-manager.js';
 import { PersistentObservation } from '../../types/observation.js';
 import { ObservationTreeItem, ObservationDetailItem, SessionGroupTreeItem } from './observation-tree-item.js';
 import { Debouncer } from '../../utils/debouncer.js';
@@ -89,6 +90,7 @@ export class ObservationsProvider implements vscode.TreeDataProvider<FeedItem>, 
     constructor(
         private readonly store: ObservationStore,
         private readonly stateManager: StateManager,
+        private readonly configManager?: ConfigManager,
     ) {
         this.refreshDebouncer = new Debouncer(() => {
             this._onDidChangeTreeData.fire();
@@ -323,6 +325,8 @@ export class ObservationsProvider implements vscode.TreeDataProvider<FeedItem>, 
             return tb.localeCompare(ta);
         });
 
+        const severityMode = this.configManager?.getSessionSeverityMode() ?? 'recent';
+
         return sortedSessions.map(sid => {
             const inMemory = sessionObsMap.get(sid) ?? [];
             const historical = (this.sessionFilter === sid || !this.sessionFilter)
@@ -330,7 +334,20 @@ export class ObservationsProvider implements vscode.TreeDataProvider<FeedItem>, 
                 : [];
             const totalCount = inMemory.length + historical.length;
             const allObs = [...inMemory, ...historical];
-            const severity = SessionGroupTreeItem.highestSeverityOf(allObs);
+
+            let severity: string;
+            if (severityMode === 'highest') {
+                severity = SessionGroupTreeItem.highestSeverityOf(allObs);
+            } else {
+                // 'recent': observations are stored oldest-first in memory,
+                // so the last in-memory observation is the most recent.
+                // If no in-memory observations, fall back to first historical (newest of historical batch).
+                const mostRecent = inMemory.length > 0
+                    ? inMemory[inMemory.length - 1]
+                    : (historical.length > 0 ? historical[0] : undefined);
+                severity = mostRecent?.severity ?? 'info';
+            }
+
             const label = this.getSessionLabel(sid);
             return new SessionGroupTreeItem(sid, label, totalCount, severity);
         });

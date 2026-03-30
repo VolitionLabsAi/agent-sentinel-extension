@@ -20,6 +20,13 @@
       "default": 24,
       "minimum": 0
     },
+    "session_severity_mode": {
+      "type": "string",
+      "enum": ["recent", "highest"],
+      "default": "recent",
+      "description": "How to determine the severity icon for session groups in Observations. 'recent' shows the most recent observation's severity. 'highest' shows the highest severity across all observations in the session.",
+      "markdownDescription": "How to determine the severity icon for session groups in Observations.\n- `recent` — most recent observation's severity\n- `highest` — highest severity across all observations in the session"
+    },
     "auto_start": {
       "type": "boolean",
       "description": "Automatically start sentinel monitoring when a new agent session is detected.",

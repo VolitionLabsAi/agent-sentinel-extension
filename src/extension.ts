@@ -213,7 +213,7 @@ export function activate(context: vscode.ExtensionContext) {
         }),
     );
 
-    const observationsProvider = new ObservationsProvider(observationStore, stateManager);
+    const observationsProvider = new ObservationsProvider(observationStore, stateManager, configManager);
     context.subscriptions.push(observationsProvider);
 
     const treeView = vscode.window.createTreeView('sentinel.observations', {
@@ -926,6 +926,8 @@ export function activate(context: vscode.ExtensionContext) {
             // Update the time window selector in the header
             const windowMs = configManager.getObservationWindowMs();
             aboutProvider.updateTimeWindow(windowMs === 0 ? 0 : windowMs / 3600000);
+            // Refresh observations tree in case session_severity_mode changed
+            observationsProvider.refresh();
         }),
     );
 
