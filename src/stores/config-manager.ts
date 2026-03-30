@@ -428,6 +428,45 @@ export class ConfigManager implements vscode.Disposable {
     }
 
     /**
+     * Returns the observations view mode from the first folder's config.
+     * Controls whether the Observations panel shows grouped (by session) or flat (live-feed) view.
+     * Defaults to 'grouped' if not set.
+     */
+    getObservationsViewMode(): 'grouped' | 'flat' {
+        for (const folder of this.folders.values()) {
+            if (folder.config?.observations_view_mode !== undefined) {
+                return folder.config.observations_view_mode;
+            }
+        }
+        return 'grouped';
+    }
+
+    /**
+     * Write `observations_view_mode` to the first folder's config file.
+     */
+    async setObservationsViewMode(mode: 'grouped' | 'flat'): Promise<void> {
+        for (const folder of this.folders.values()) {
+            if (!folder.config) { continue; }
+
+            folder.config.observations_view_mode = mode;
+
+            try {
+                this._isWriting = true;
+                const json = JSON.stringify(folder.config, null, 2) + '\n';
+                await fs.writeFile(folder.configPath, json, 'utf-8');
+                setTimeout(() => { this._isWriting = false; }, 200);
+            } catch (err) {
+                this._isWriting = false;
+                console.error(`[ConfigManager] Failed to write observations view mode: ${err}`);
+                vscode.window.showErrorMessage(`Failed to update observations view mode: ${err}`);
+            }
+
+            this._onConfigChanged.fire();
+            return;
+        }
+    }
+
+    /**
      * Returns the base defaults from the first workspace folder's config.
      * Used as tier-3 (lowest priority) in harness config resolution.
      */

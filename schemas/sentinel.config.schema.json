@@ -34,6 +34,13 @@
       "description": "How to compute the status bar severity indicator. 'recent' shows the most recent observation's severity within the window. 'highest' shows the highest severity across all observations within the window.",
       "markdownDescription": "How to compute the status bar severity indicator.\n- `recent` — severity of the most recent observation within the window (default)\n- `highest` — highest severity across all observations within the window"
     },
+    "observations_view_mode": {
+      "type": "string",
+      "enum": ["grouped", "flat"],
+      "default": "grouped",
+      "description": "How to display observations in the Observations panel. 'grouped' groups observations by session (collapsed by default). 'flat' shows a live chronological feed.",
+      "markdownDescription": "How to display observations in the Observations panel.\n- `grouped` — Group observations by session, collapsed by default (recommended)\n- `flat` — Live chronological feed across all sessions"
+    },
     "auto_start": {
       "type": "boolean",
       "description": "Automatically start sentinel monitoring when a new agent session is detected.",

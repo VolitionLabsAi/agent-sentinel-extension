@@ -174,3 +174,118 @@ suite('ConfigManager — session_severity_mode', () => {
         assert.strictEqual(manager.getSessionSeverityMode(), 'highest');
     });
 });
+
+suite('ConfigManager — observations_view_mode', () => {
+    let tmpDir: string;
+    let manager: ConfigManager;
+
+    setup(() => {
+        tmpDir = makeTempDir();
+        manager = new ConfigManager();
+    });
+
+    teardown(() => {
+        manager.dispose();
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    test('defaults to "grouped" when no config file exists', () => {
+        const configPath = path.join(tmpDir, 'sentinel.config.json');
+        manager.addFolder('folder1', configPath, tmpDir);
+        assert.strictEqual(manager.getObservationsViewMode(), 'grouped');
+    });
+
+    test('defaults to "grouped" when config has no observations_view_mode', async () => {
+        const configPath = path.join(tmpDir, 'sentinel.config.json');
+        fs.writeFileSync(configPath, JSON.stringify({
+            version: '1',
+            sentinels: [],
+        }));
+        manager.addFolder('folder1', configPath, tmpDir);
+        await manager.load();
+        assert.strictEqual(manager.getObservationsViewMode(), 'grouped');
+    });
+
+    test('returns "flat" when config sets observations_view_mode to "flat"', async () => {
+        const configPath = path.join(tmpDir, 'sentinel.config.json');
+        fs.writeFileSync(configPath, JSON.stringify({
+            version: '1',
+            observations_view_mode: 'flat',
+            sentinels: [],
+        }));
+        manager.addFolder('folder1', configPath, tmpDir);
+        await manager.load();
+        assert.strictEqual(manager.getObservationsViewMode(), 'flat');
+    });
+
+    test('returns "grouped" when config explicitly sets observations_view_mode to "grouped"', async () => {
+        const configPath = path.join(tmpDir, 'sentinel.config.json');
+        fs.writeFileSync(configPath, JSON.stringify({
+            version: '1',
+            observations_view_mode: 'grouped',
+            sentinels: [],
+        }));
+        manager.addFolder('folder1', configPath, tmpDir);
+        await manager.load();
+        assert.strictEqual(manager.getObservationsViewMode(), 'grouped');
+    });
+
+    test('setObservationsViewMode writes to disk and updates in-memory state', async () => {
+        const configPath = path.join(tmpDir, 'sentinel.config.json');
+        fs.writeFileSync(configPath, JSON.stringify({
+            version: '1',
+            sentinels: [],
+        }));
+        manager.addFolder('folder1', configPath, tmpDir);
+        await manager.load();
+
+        assert.strictEqual(manager.getObservationsViewMode(), 'grouped');
+
+        await manager.setObservationsViewMode('flat');
+        assert.strictEqual(manager.getObservationsViewMode(), 'flat');
+
+        // Verify the value was written to disk
+        const written = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as Record<string, unknown>;
+        assert.strictEqual(written['observations_view_mode'], 'flat');
+    });
+
+    test('setObservationsViewMode can toggle back to grouped', async () => {
+        const configPath = path.join(tmpDir, 'sentinel.config.json');
+        fs.writeFileSync(configPath, JSON.stringify({
+            version: '1',
+            observations_view_mode: 'flat',
+            sentinels: [],
+        }));
+        manager.addFolder('folder1', configPath, tmpDir);
+        await manager.load();
+
+        assert.strictEqual(manager.getObservationsViewMode(), 'flat');
+
+        await manager.setObservationsViewMode('grouped');
+        assert.strictEqual(manager.getObservationsViewMode(), 'grouped');
+
+        const written = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as Record<string, unknown>;
+        assert.strictEqual(written['observations_view_mode'], 'grouped');
+    });
+
+    test('updates observations_view_mode when config file is reloaded', async () => {
+        const configPath = path.join(tmpDir, 'sentinel.config.json');
+        fs.writeFileSync(configPath, JSON.stringify({
+            version: '1',
+            observations_view_mode: 'grouped',
+            sentinels: [],
+        }));
+        manager.addFolder('folder1', configPath, tmpDir);
+        await manager.load();
+        assert.strictEqual(manager.getObservationsViewMode(), 'grouped');
+
+        // Simulate external config update
+        fs.writeFileSync(configPath, JSON.stringify({
+            version: '1',
+            observations_view_mode: 'flat',
+            sentinels: [],
+        }));
+        await manager.load();
+        assert.strictEqual(manager.getObservationsViewMode(), 'flat');
+    });
+});

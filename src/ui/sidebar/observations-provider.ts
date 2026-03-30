@@ -104,6 +104,12 @@ export class ObservationsProvider implements vscode.TreeDataProvider<FeedItem>, 
         }, 250);
         this.disposables.push(this._onDidChangeTreeData);
 
+        // Read persisted view mode from config (defaults to 'grouped')
+        if (configManager) {
+            const persistedMode = configManager.getObservationsViewMode();
+            this.groupBySession = persistedMode !== 'flat';
+        }
+
         // Set initial context for group-by-session mode
         void vscode.commands.executeCommand('setContext', 'sentinel.groupBySession', this.groupBySession);
 
@@ -151,10 +157,14 @@ export class ObservationsProvider implements vscode.TreeDataProvider<FeedItem>, 
         return this.groupBySession;
     }
 
-    /** Toggle group-by-session mode and refresh. */
+    /** Toggle group-by-session mode, persist to config, and refresh. */
     toggleGroupBySession(): void {
         this.groupBySession = !this.groupBySession;
         void vscode.commands.executeCommand('setContext', 'sentinel.groupBySession', this.groupBySession);
+        if (this.configManager) {
+            const newMode = this.groupBySession ? 'grouped' : 'flat';
+            void this.configManager.setObservationsViewMode(newMode);
+        }
         this.refresh();
     }
 

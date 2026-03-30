@@ -87,6 +87,8 @@ export interface SentinelConfigFile {
     session_severity_mode?: 'recent' | 'highest';
     /** How to compute the status bar severity: 'recent' (most recent observation) or 'highest' (max severity in window). Defaults to 'recent'. */
     status_bar_severity_mode?: 'recent' | 'highest';
+    /** How to display observations in the Observations panel: 'grouped' (by session) or 'flat' (live-feed). Defaults to 'grouped'. */
+    observations_view_mode?: 'grouped' | 'flat';
     defaults: {
         execution: string;
         model: string;

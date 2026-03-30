@@ -114,7 +114,7 @@ export class SessionGroupTreeItem extends vscode.TreeItem {
         observationCount: number,
         displaySeverity: string,
     ) {
-        super(sessionLabel, vscode.TreeItemCollapsibleState.Expanded);
+        super(sessionLabel, vscode.TreeItemCollapsibleState.Collapsed);
 
         this.description = `${observationCount} observation${observationCount === 1 ? '' : 's'}`;
         this.contextValue = 'observationGroup';
