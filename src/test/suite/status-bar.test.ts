@@ -205,10 +205,31 @@ suite('StatusBarManager', () => {
         assert.ok(tooltip.value.includes('3 info'), 'Tooltip should include info count');
     });
 
-    test('tooltip includes click hint for Insights', () => {
+    test('tooltip includes click hint for Insights when severity is none/info', () => {
+        manager.setInitialized(true);
+        manager.setHighestSeverity('none');
         const internal = manager as unknown as StatusBarManagerTestable;
         const tooltip = internal.item.tooltip as vscode.MarkdownString;
         assert.ok(tooltip.value.includes('click to open Insights'), 'Tooltip should include Insights hint');
+        assert.strictEqual(internal.item.command, 'sentinel.showInsights');
+    });
+
+    test('tooltip includes click hint for Observations when severity is warning', () => {
+        manager.setInitialized(true);
+        manager.setHighestSeverity('warning');
+        const internal = manager as unknown as StatusBarManagerTestable;
+        const tooltip = internal.item.tooltip as vscode.MarkdownString;
+        assert.ok(tooltip.value.includes('click to open Observations'), 'Tooltip should include Observations hint');
+        assert.strictEqual(internal.item.command, 'sentinel.openObservations');
+    });
+
+    test('tooltip includes click hint for Observations when severity is critical', () => {
+        manager.setInitialized(true);
+        manager.setHighestSeverity('critical');
+        const internal = manager as unknown as StatusBarManagerTestable;
+        const tooltip = internal.item.tooltip as vscode.MarkdownString;
+        assert.ok(tooltip.value.includes('click to open Observations'), 'Tooltip should include Observations hint');
+        assert.strictEqual(internal.item.command, 'sentinel.openObservations');
     });
 
     // ── Dispose ──────────────────────────────────────────────

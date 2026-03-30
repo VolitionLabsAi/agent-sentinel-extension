@@ -42,10 +42,13 @@ export function getSteeringHistory(): ReadonlyArray<SteeringInstruction> {
  * Resolve the steering JSONL file path for the first workspace folder.
  * Returns undefined if no workspace folder is open.
  */
-export function getSteeringFilePath(): string | undefined {
+export function getSteeringFilePath(sessionId?: string): string | undefined {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     if (!workspaceRoot) {
         return undefined;
+    }
+    if (sessionId) {
+        return path.join(workspaceRoot, '.volition', 'sentinel', 'sessions', sessionId, 'steering.jsonl');
     }
     return path.join(workspaceRoot, '.volition', 'sentinel', 'steering.jsonl');
 }
@@ -53,9 +56,10 @@ export function getSteeringFilePath(): string | undefined {
 /**
  * Append a steering instruction to the JSONL file.
  * Creates the directory and file if they don't exist.
+ * If the instruction has a session_id, writes to the session-specific steering file.
  */
 export async function writeSteeringInstruction(entry: SteeringInstruction): Promise<void> {
-    const filePath = getSteeringFilePath();
+    const filePath = getSteeringFilePath(entry.session_id);
     if (!filePath) {
         return;
     }
@@ -67,6 +71,7 @@ export async function writeSteeringInstruction(entry: SteeringInstruction): Prom
 
 /**
  * Get the active sentinel session ID from the state manager, if any.
+ * Returns the most recent session.
  */
 function getActiveSessionId(stateManager: StateManager): string | undefined {
     const sessions = stateManager.getSentinelSessions();
@@ -77,6 +82,38 @@ function getActiveSessionId(stateManager: StateManager): string | undefined {
 }
 
 /**
+ * Get all available session IDs from the state manager.
+ */
+function getAvailableSessionIds(stateManager: StateManager): string[] {
+    const sessions = stateManager.getSentinelSessions();
+    return sessions.map(s => s.parentSessionId).filter((id): id is string => !!id);
+}
+
+/**
+ * Prompt the user to select a session from available sessions.
+ * Returns the selected session ID or undefined if cancelled.
+ */
+async function pickSession(stateManager: StateManager): Promise<string | undefined> {
+    const sessionIds = getAvailableSessionIds(stateManager);
+    if (sessionIds.length === 0) {
+        void vscode.window.showWarningMessage('No active sessions found.');
+        return undefined;
+    }
+
+    const items = sessionIds.map(id => ({
+        label: id,
+        description: id === getActiveSessionId(stateManager) ? '(most recent)' : '',
+    }));
+
+    const picked = await vscode.window.showQuickPick(items, {
+        placeHolder: 'Select a session to steer',
+        title: 'Select Session',
+    });
+
+    return picked?.label;
+}
+
+/**
  * Present a QuickPick of common sentinel steering actions,
  * collect the specific instruction, persist it, and store in history.
  */
@@ -84,6 +121,9 @@ export async function steerSentinel(
     stateManager: StateManager,
     adapterRegistry: HarnessAdapterRegistry,
 ): Promise<void> {
+    // Default to the most recent session
+    let sessionId = getActiveSessionId(stateManager);
+
     const actionItems = [
         {
             label: '$(eye) Watch for...',
@@ -108,10 +148,17 @@ export async function steerSentinel(
         },
         {
             label: '$(pencil) Custom instruction...',
-            description: 'Send a custom instruction to sentinel',
+            description: 'Send a free-form instruction to sentinel',
             action: 'custom' as const,
             prompt: 'Enter your instruction for sentinel:',
             placeholder: 'e.g., Focus on security concerns for the next 10 minutes',
+        },
+        {
+            label: '$(list-selection) Select session...',
+            description: 'Choose a specific session to steer',
+            action: 'selectSession' as const,
+            prompt: '',
+            placeholder: '',
         },
     ];
 
@@ -124,8 +171,44 @@ export async function steerSentinel(
         return; // User cancelled
     }
 
-    const sessionId = getActiveSessionId(stateManager);
+    // Handle "Select session..." — pick a session, then re-show the action picker
+    if (picked.action === 'selectSession') {
+        const chosenSession = await pickSession(stateManager);
+        if (!chosenSession) {
+            return;
+        }
+        sessionId = chosenSession;
 
+        // Re-show the action picker (without the session option)
+        const actionOnlyItems = actionItems.filter(i => i.action !== 'selectSession');
+        const secondPick = await vscode.window.showQuickPick(actionOnlyItems, {
+            placeHolder: `Steering session: ${sessionId}`,
+            title: 'Sentinel Steering',
+        });
+
+        if (!secondPick) {
+            return;
+        }
+
+        return handleAction(secondPick, sessionId, stateManager, adapterRegistry);
+    }
+
+    return handleAction(picked, sessionId, stateManager, adapterRegistry);
+}
+
+/**
+ * Handle a selected steering action.
+ */
+async function handleAction(
+    picked: {
+        action: 'watch' | 'ignore' | 'createEval' | 'custom';
+        prompt: string;
+        placeholder: string;
+    },
+    sessionId: string | undefined,
+    stateManager: StateManager,
+    adapterRegistry: HarnessAdapterRegistry,
+): Promise<void> {
     // For "Create eval for...", generate and save directly
     if (picked.action === 'createEval') {
         const description = await vscode.window.showInputBox({
@@ -169,12 +252,12 @@ export async function steerSentinel(
         }
 
         void vscode.window.showInformationMessage(
-            `Sentinel: Eval created (${generated.id}) at ${path.basename(savedPath)}`,
+            `Steering instruction sent \u2014 sentinel will apply on next evaluation`,
         );
         return;
     }
 
-    // For all other actions, collect the instruction
+    // For "Custom instruction...", use an InputBox for free-form text
     const instruction = await vscode.window.showInputBox({
         prompt: picked.prompt,
         placeHolder: picked.placeholder,
@@ -202,14 +285,7 @@ export async function steerSentinel(
     }
 
     // Show confirmation
-    const actionLabels: Record<string, string> = {
-        watch: 'Watching for',
-        ignore: 'Ignoring',
-        custom: 'Instruction sent',
-    };
-
-    const label = actionLabels[entry.action] ?? 'Noted';
     void vscode.window.showInformationMessage(
-        `Sentinel: ${label}: "${instruction.slice(0, 60)}${instruction.length > 60 ? '...' : ''}"`,
+        `Steering instruction sent \u2014 sentinel will apply on next evaluation`,
     );
 }

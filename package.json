@@ -161,6 +161,11 @@
           "command": "sentinel.importEval",
           "when": "view == sentinel.evals",
           "group": "navigation"
+        },
+        {
+          "command": "sentinel.steerSentinel",
+          "when": "view == sentinel.evals",
+          "group": "navigation"
         }
       ],
       "view/item/context": [
