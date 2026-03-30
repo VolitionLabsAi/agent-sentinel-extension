@@ -630,7 +630,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     // --- Header Panel Webview ---
 
-    const aboutProvider = new AboutProvider(context.extensionUri);
+    const aboutProvider = new AboutProvider(context.extensionUri, configManager);
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(AboutProvider.viewType, aboutProvider),
     );
@@ -673,7 +673,8 @@ export function activate(context: vscode.ExtensionContext) {
         const sessionFilter = mode === 'all' ? undefined : observationsProvider.getSessionFilter();
         // In "all" mode, apply a configurable recency window so stale observations
         // don't keep the status bar permanently colored (default 24 hours).
-        const maxAgeMs = mode === 'all' ? configManager.getObservationWindowMs() : undefined;
+        const windowMs = mode === 'all' ? configManager.getObservationWindowMs() : 0;
+        const maxAgeMs = windowMs > 0 ? windowMs : undefined;
         const severity = observationStore.getHighestSeverity(sessionFilter ?? undefined, maxAgeMs);
         const counts = observationStore.getSeverityCounts(sessionFilter ?? undefined, maxAgeMs);
         statusBar.setHighestSeverity(severity);
@@ -724,8 +725,8 @@ export function activate(context: vscode.ExtensionContext) {
         }
 
         // Align Insights recency window with the status bar
-        const maxAgeMs = mode === 'all' ? configManager.getObservationWindowMs() : undefined;
-        insightsProvider.setMaxAge(maxAgeMs);
+        const insightWindowMs = mode === 'all' ? configManager.getObservationWindowMs() : 0;
+        insightsProvider.setMaxAge(insightWindowMs > 0 ? insightWindowMs : undefined);
 
         // Update the header panel with detailed filter info
         aboutProvider.updateFilterState(mode, observationsProvider, sessionCorrelator, stateManager);
@@ -922,6 +923,9 @@ export function activate(context: vscode.ExtensionContext) {
             await healthAssessor.runCheckForAllFolders();
             // Re-apply observation window in case observation_window_hours changed
             updateSessionContext();
+            // Update the time window selector in the header
+            const windowMs = configManager.getObservationWindowMs();
+            aboutProvider.updateTimeWindow(windowMs === 0 ? 0 : windowMs / 3600000);
         }),
     );
 
@@ -953,7 +957,10 @@ export function activate(context: vscode.ExtensionContext) {
         console.warn('[Agent Sentinel] Initial state load failed:', err);
     });
 
-    configManager.load().catch((err) => {
+    configManager.load().then(() => {
+        const windowMs = configManager.getObservationWindowMs();
+        aboutProvider.updateTimeWindow(windowMs === 0 ? 0 : windowMs / 3600000);
+    }).catch((err) => {
         console.warn('[Agent Sentinel] Initial config load failed:', err);
     });
 

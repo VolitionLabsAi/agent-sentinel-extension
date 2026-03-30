@@ -15,10 +15,10 @@
     },
     "observation_window_hours": {
       "type": "number",
-      "description": "Number of hours to look back when showing observations in \"All\" mode. Applies to status bar severity, Insights panel, and anywhere else that uses time-filtered observations.",
-      "markdownDescription": "Number of hours to look back when showing observations in **All** mode.\n\nApplies to status bar severity, Insights panel, and anywhere else that uses time-filtered observations.\n\nMinimum: `1` hour. Default: `24` hours.",
+      "description": "Number of hours to look back when showing observations in \"All\" mode. 0 means all time (no filter). Applies to status bar severity, Insights panel, and anywhere else that uses time-filtered observations.",
+      "markdownDescription": "Number of hours to look back when showing observations in **All** mode.\n\nApplies to status bar severity, Insights panel, and anywhere else that uses time-filtered observations.\n\n- `0` — All time (no filter)\n- Positive value — look back that many hours\n- Shorthand in UI: `30m`, `12h`, `3d`, `2w`, `1mo`\n\nMinimum: `0` (all time). Default: `24` hours.",
       "default": 24,
-      "minimum": 1
+      "minimum": 0
     },
     "auto_start": {
       "type": "boolean",

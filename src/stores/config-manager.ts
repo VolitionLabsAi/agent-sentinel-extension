@@ -364,11 +364,39 @@ export class ConfigManager implements vscode.Disposable {
         const DEFAULT_HOURS = 24;
         for (const folder of this.folders.values()) {
             if (folder.config?.observation_window_hours !== undefined) {
-                const hours = Math.max(1, folder.config.observation_window_hours);
-                return hours * 60 * 60 * 1000;
+                const hours = folder.config.observation_window_hours;
+                // 0 means "all time" (no filter)
+                if (hours === 0) { return 0; }
+                return Math.max(1, hours) * 60 * 60 * 1000;
             }
         }
         return DEFAULT_HOURS * 60 * 60 * 1000;
+    }
+
+    /**
+     * Write `observation_window_hours` to the first folder's config file.
+     */
+    async setObservationWindowHours(hours: number): Promise<void> {
+        for (const folder of this.folders.values()) {
+            if (!folder.config) { continue; }
+
+            folder.config.observation_window_hours = hours;
+
+            try {
+                this._isWriting = true;
+                const json = JSON.stringify(folder.config, null, 2) + '\n';
+                await fs.writeFile(folder.configPath, json, 'utf-8');
+                setTimeout(() => { this._isWriting = false; }, 200);
+            } catch (err) {
+                this._isWriting = false;
+                console.error(`[ConfigManager] Failed to write observation window: ${err}`);
+                vscode.window.showErrorMessage(`Failed to update observation window: ${err}`);
+            }
+
+            this.rebuildMergedRules();
+            this._onConfigChanged.fire();
+            return;
+        }
     }
 
     /**

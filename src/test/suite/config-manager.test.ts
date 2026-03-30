@@ -52,11 +52,23 @@ suite('ConfigManager — observation_window_hours', () => {
         assert.strictEqual(manager.getObservationWindowMs(), 6 * 60 * 60 * 1000);
     });
 
-    test('clamps observation_window_hours to minimum of 1', async () => {
+    test('treats observation_window_hours 0 as all time (no filter)', async () => {
         const configPath = path.join(tmpDir, 'sentinel.config.json');
         fs.writeFileSync(configPath, JSON.stringify({
             version: '1',
             observation_window_hours: 0,
+            sentinels: [],
+        }));
+        manager.addFolder('folder1', configPath, tmpDir);
+        await manager.load();
+        assert.strictEqual(manager.getObservationWindowMs(), 0);
+    });
+
+    test('clamps small positive observation_window_hours to minimum of 1', async () => {
+        const configPath = path.join(tmpDir, 'sentinel.config.json');
+        fs.writeFileSync(configPath, JSON.stringify({
+            version: '1',
+            observation_window_hours: 0.3,
             sentinels: [],
         }));
         manager.addFolder('folder1', configPath, tmpDir);

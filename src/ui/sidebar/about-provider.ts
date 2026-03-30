@@ -3,6 +3,8 @@ import * as crypto from 'crypto';
 import type { ViewMode } from './observations-provider.js';
 import type { SessionCorrelator } from '../../correlation/session-correlator.js';
 import type { StateManager } from '../../stores/state-manager.js';
+import type { ConfigManager } from '../../stores/config-manager.js';
+import { parseDurationToHours } from '../../utils/duration-parser.js';
 
 /** Minimal interface for the observations provider fields we need. */
 interface ObservationsProviderLike {
@@ -16,13 +18,27 @@ export class AboutProvider implements vscode.WebviewViewProvider {
     private filterMode: ViewMode = 'all';
     private filterDetail = '';
     private lastEvalTimestamp: string | undefined;
+    private currentWindowHours = 24;
 
-    constructor(private readonly extensionUri: vscode.Uri) {}
+    constructor(
+        private readonly extensionUri: vscode.Uri,
+        private readonly configManager: ConfigManager,
+    ) {}
 
     /** Update the last-eval timestamp shown in the status pill. */
     updateLastEvalTime(timestamp: string | undefined): void {
         this.lastEvalTimestamp = timestamp;
         this.pushStateToWebview();
+    }
+
+    /** Update which time window preset is highlighted. */
+    updateTimeWindow(hours: number): void {
+        this.currentWindowHours = hours;
+        if (!this.webviewView) { return; }
+        void this.webviewView.webview.postMessage({
+            type: 'updateTimeWindow',
+            hours,
+        });
     }
 
     /**
@@ -90,7 +106,7 @@ export class AboutProvider implements vscode.WebviewViewProvider {
 
         this.renderHtml();
 
-        webviewView.webview.onDidReceiveMessage((msg: { type: string }) => {
+        webviewView.webview.onDidReceiveMessage((msg: { type: string; hours?: number }) => {
             switch (msg.type) {
                 case 'openSettings':
                     void vscode.commands.executeCommand('sentinel.openSettings');
@@ -108,11 +124,40 @@ export class AboutProvider implements vscode.WebviewViewProvider {
                 case 'changeFilter':
                     void vscode.commands.executeCommand('sentinel.setViewMode');
                     break;
+                case 'setTimeWindow':
+                    if (msg.hours !== undefined) {
+                        void this.configManager.setObservationWindowHours(msg.hours);
+                    }
+                    break;
+                case 'requestCustomTimeWindow':
+                    void this.showCustomTimeWindowInput();
+                    break;
             }
         });
 
         // Push current state in case it was set before the webview was ready
         this.pushStateToWebview();
+        // Push current time window
+        this.updateTimeWindow(this.currentWindowHours);
+    }
+
+    private async showCustomTimeWindowInput(): Promise<void> {
+        const input = await vscode.window.showInputBox({
+            prompt: 'Enter a time window (e.g., 12h, 3d, 2w, 1mo, 45m, or 0 for all)',
+            placeHolder: '24h',
+            validateInput: (value) => {
+                if (!value.trim()) { return 'Please enter a duration'; }
+                const hours = parseDurationToHours(value);
+                if (hours === null || hours < 0) { return 'Invalid duration. Use formats like 30m, 12h, 3d, 2w, 1mo'; }
+                return undefined;
+            },
+        });
+        if (input !== undefined) {
+            const hours = parseDurationToHours(input);
+            if (hours !== null && hours >= 0) {
+                await this.configManager.setObservationWindowHours(hours);
+            }
+        }
     }
 
     private pushStateToWebview(): void {
@@ -220,6 +265,47 @@ export class AboutProvider implements vscode.WebviewViewProvider {
         .status-dot.fresh  { background: var(--vscode-testing-iconPassed, #388a34); }
         .status-dot.recent { background: var(--vscode-editorWarning-foreground, #ff9800); }
         .status-dot.stale  { background: var(--vscode-disabledForeground, #888); }
+        .time-window-row {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 0 1px;
+            flex-wrap: wrap;
+        }
+        .time-label {
+            color: var(--vscode-descriptionForeground);
+            font-size: 0.9em;
+        }
+        .time-preset {
+            font-size: 11px;
+            padding: 1px 6px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            background: var(--vscode-button-secondaryBackground);
+            color: var(--vscode-button-secondaryForeground);
+            font-family: var(--vscode-font-family);
+        }
+        .time-preset:hover {
+            opacity: 0.85;
+        }
+        .time-preset.active {
+            background: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+        }
+        .time-custom {
+            font-size: 11px;
+            padding: 1px 6px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            background: var(--vscode-button-secondaryBackground);
+            color: var(--vscode-button-secondaryForeground);
+            font-family: var(--vscode-font-family);
+        }
+        .time-custom:hover {
+            opacity: 0.85;
+        }
     </style>
 </head>
 <body>
@@ -244,6 +330,15 @@ export class AboutProvider implements vscode.WebviewViewProvider {
         <a id="docs" href="#">Docs</a>
         <span class="separator">&middot;</span>
         <span class="version">v${version}</span>
+    </div>
+    <div class="time-window-row">
+        <span class="time-label">Window:</span>
+        <button class="time-preset" data-hours="24">24h</button>
+        <button class="time-preset" data-hours="72">72h</button>
+        <button class="time-preset" data-hours="168">7d</button>
+        <button class="time-preset" data-hours="720">30d</button>
+        <button class="time-preset" data-hours="0">All</button>
+        <button class="time-custom">Custom...</button>
     </div>
     <script nonce="${nonce}">
         (function() {
@@ -270,6 +365,18 @@ export class AboutProvider implements vscode.WebviewViewProvider {
             }
             setInterval(function() { if (lastTimestamp) { updateStatusPill(lastTimestamp); } }, 30000);
 
+            function setActivePreset(hours) {
+                var presets = document.querySelectorAll('.time-preset');
+                presets.forEach(function(btn) {
+                    var btnHours = Number(btn.getAttribute('data-hours'));
+                    if (btnHours === hours) {
+                        btn.classList.add('active');
+                    } else {
+                        btn.classList.remove('active');
+                    }
+                });
+            }
+
             window.addEventListener('message', function(event) {
                 const msg = event.data;
                 if (msg.type === 'updateFilter') {
@@ -283,7 +390,19 @@ export class AboutProvider implements vscode.WebviewViewProvider {
                         detailRow.style.display = 'none';
                     }
                     updateStatusPill(msg.lastEvalTimestamp || null);
+                } else if (msg.type === 'updateTimeWindow') {
+                    setActivePreset(msg.hours);
                 }
+            });
+
+            document.querySelectorAll('.time-preset').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    var hours = Number(btn.getAttribute('data-hours'));
+                    vscode.postMessage({ type: 'setTimeWindow', hours: hours });
+                });
+            });
+            document.querySelector('.time-custom').addEventListener('click', function() {
+                vscode.postMessage({ type: 'requestCustomTimeWindow' });
             });
 
             document.getElementById('changeFilter').addEventListener('click', function(e) {
