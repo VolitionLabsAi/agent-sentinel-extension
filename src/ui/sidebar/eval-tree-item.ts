@@ -2,6 +2,22 @@ import * as vscode from 'vscode';
 import { EvalDomain, EvalRule, LocalEval } from '../../types/eval-rule.js';
 
 /**
+ * Extract a short title from the first sentence of rule text.
+ * Takes up to the first period-followed-by-whitespace, or the first newline,
+ * whichever comes first. Falls back to a truncated version of the full text.
+ */
+function extractTitle(ruleText: string): string {
+    const firstLine = ruleText.split('\n')[0].trim();
+    // Match up to first ". " or ".\n" or period at end of line
+    const sentenceEnd = firstLine.match(/^(.+?\.)\s/);
+    if (sentenceEnd) {
+        const title = sentenceEnd[1];
+        return title.length > 60 ? title.substring(0, 57) + '...' : title;
+    }
+    return firstLine.length > 60 ? firstLine.substring(0, 57) + '...' : firstLine;
+}
+
+/**
  * Severity metadata for eval rules — mirrors observation-tree-item.ts conventions.
  */
 const SEVERITY_META: Record<string, { icon: string; color: string; label: string }> = {
@@ -50,7 +66,8 @@ export class EvalTreeItem extends vscode.TreeItem {
         public readonly hitCount: number,
         public readonly lastTriggered: string | undefined,
     ) {
-        super(rule.id, vscode.TreeItemCollapsibleState.Collapsed);
+        const title = extractTitle(rule.rule);
+        super(`${rule.id}: ${title}`, vscode.TreeItemCollapsibleState.Collapsed);
 
         const meta = SEVERITY_META[rule.severity] ?? SEVERITY_META.info;
 
@@ -104,7 +121,8 @@ export class DynamicEvalTreeItem extends vscode.TreeItem {
         public readonly lastTriggered: string | undefined,
         public readonly isCurrentSession: boolean,
     ) {
-        super(localEval.id, vscode.TreeItemCollapsibleState.Collapsed);
+        const title = extractTitle(localEval.rule);
+        super(`${localEval.id}: ${title}`, vscode.TreeItemCollapsibleState.Collapsed);
 
         const meta = SEVERITY_META[localEval.severity] ?? SEVERITY_META.info;
 

@@ -168,7 +168,7 @@ export class EvalsProvider implements vscode.TreeDataProvider<EvalNode>, vscode.
         const items: EvalDetailItem[] = [];
 
         if (rule.rule) {
-            items.push(new EvalDetailItem('Rule', rule.rule));
+            items.push(new EvalDetailItem('Eval', rule.rule));
         }
         if (rule.rationale) {
             items.push(new EvalDetailItem('Rationale', rule.rationale));
