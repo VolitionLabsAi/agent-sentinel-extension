@@ -85,7 +85,7 @@ export function getSessionHealthHtml(nonce: string, cspSource: string): string {
 
                 const rateEl = document.getElementById('failure-rate');
                 const rate = data.summary.failureRate;
-                rateEl.textContent = rate.toFixed(1) + '%';
+                rateEl.textContent = Math.round(rate) + '%';
                 rateEl.className = 'metric-value ' + (rate === 0 ? 'rate-ok' : rate < 20 ? 'rate-warn' : 'rate-critical');
 
                 document.getElementById('dynamic-rules').textContent = String(data.summary.dynamicRulesCount);
