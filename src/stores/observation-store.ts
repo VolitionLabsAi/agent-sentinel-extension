@@ -425,6 +425,40 @@ export class ObservationStore implements vscode.Disposable {
     }
 
     /**
+     * Returns the severity of the most recent observation within scope.
+     * If sessionFilter is provided, only that session is considered;
+     * otherwise all sessions are considered.
+     *
+     * When maxAgeMs is provided, only observations newer than
+     * `Date.now() - maxAgeMs` are considered.
+     *
+     * Returns undefined if no observations exist within the scope/window,
+     * so callers can distinguish "no data" from a low-severity observation.
+     */
+    getMostRecentSeverity(sessionFilter?: string, maxAgeMs?: number): string | undefined {
+        const cutoff = maxAgeMs !== undefined ? Date.now() - maxAgeMs : 0;
+
+        let mostRecentObs: PersistentObservation | undefined;
+
+        const sources = sessionFilter
+            ? [this.observations.get(sessionFilter)].filter(Boolean) as PersistentObservation[][]
+            : Array.from(this.observations.values());
+
+        for (const sessionObs of sources) {
+            for (const obs of sessionObs) {
+                if (maxAgeMs !== undefined && new Date(obs.timestamp).getTime() <= cutoff) {
+                    continue;
+                }
+                if (!mostRecentObs || obs.timestamp > mostRecentObs.timestamp) {
+                    mostRecentObs = obs;
+                }
+            }
+        }
+
+        return mostRecentObs?.severity;
+    }
+
+    /**
      * Compute the highest severity across observations in scope.
      * If sessionFilter is provided, only that session is considered;
      * otherwise all sessions are considered.

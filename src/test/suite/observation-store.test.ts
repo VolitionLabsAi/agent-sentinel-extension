@@ -564,4 +564,95 @@ suite('ObservationStore', () => {
 
         smallStore.dispose();
     });
+
+    // --- getMostRecentSeverity tests ---
+
+    test('getMostRecentSeverity returns undefined for empty store', () => {
+        assert.strictEqual(store.getMostRecentSeverity(), undefined);
+    });
+
+    test('getMostRecentSeverity returns the severity of the single observation', async () => {
+        const filePath = path.join(tmpDir, 'obs.jsonl');
+        writeObservations(filePath, [
+            makeObservation({ session_id: 'sess-1', severity: 'warning' }),
+        ]);
+
+        store.addFolder('folder1', filePath);
+        await store.load();
+
+        assert.strictEqual(store.getMostRecentSeverity(), 'warning');
+    });
+
+    test('getMostRecentSeverity returns the most recent observation severity', async () => {
+        const filePath = path.join(tmpDir, 'obs.jsonl');
+        const olderTime = new Date(Date.now() - 2 * 60 * 1000).toISOString(); // 2 min ago
+        const newerTime = new Date(Date.now() - 1 * 60 * 1000).toISOString(); // 1 min ago
+
+        writeObservations(filePath, [
+            makeObservation({ session_id: 'sess-1', severity: 'critical', timestamp: olderTime }),
+            makeObservation({ session_id: 'sess-1', severity: 'info', timestamp: newerTime }),
+        ]);
+
+        store.addFolder('folder1', filePath);
+        await store.load();
+
+        // Most recent is 'info', even though 'critical' is highest
+        assert.strictEqual(store.getMostRecentSeverity(), 'info');
+    });
+
+    test('getMostRecentSeverity with session filter only considers that session', async () => {
+        const filePath = path.join(tmpDir, 'obs.jsonl');
+        const time1 = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+        const time2 = new Date(Date.now() - 1 * 60 * 1000).toISOString();
+
+        writeObservations(filePath, [
+            makeObservation({ session_id: 'sess-1', severity: 'warning', timestamp: time1 }),
+            makeObservation({ session_id: 'sess-2', severity: 'critical', timestamp: time2 }),
+        ]);
+
+        store.addFolder('folder1', filePath);
+        await store.load();
+
+        assert.strictEqual(store.getMostRecentSeverity('sess-1'), 'warning');
+        assert.strictEqual(store.getMostRecentSeverity('sess-2'), 'critical');
+        // Without filter: returns the severity of the most recent across all sessions
+        assert.strictEqual(store.getMostRecentSeverity(), 'critical');
+    });
+
+    test('getMostRecentSeverity with maxAgeMs excludes old observations', async () => {
+        const filePath = path.join(tmpDir, 'obs.jsonl');
+        const oldTime = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(); // 4 hours ago
+        const recentTime = new Date(Date.now() - 30 * 60 * 1000).toISOString(); // 30 min ago
+
+        writeObservations(filePath, [
+            makeObservation({ session_id: 'sess-1', severity: 'critical', timestamp: oldTime }),
+            makeObservation({ session_id: 'sess-1', severity: 'info', timestamp: recentTime }),
+        ]);
+
+        store.addFolder('folder1', filePath);
+        await store.load();
+
+        const twoHours = 2 * 60 * 60 * 1000;
+        // Within 2-hour window: only the recent 'info' observation
+        assert.strictEqual(store.getMostRecentSeverity(undefined, twoHours), 'info');
+    });
+
+    test('getMostRecentSeverity with maxAgeMs returns undefined when all observations are outside window', async () => {
+        const filePath = path.join(tmpDir, 'obs.jsonl');
+        const oldTime = new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(); // 5 hours ago
+
+        writeObservations(filePath, [
+            makeObservation({ session_id: 'sess-1', severity: 'critical', timestamp: oldTime }),
+        ]);
+
+        store.addFolder('folder1', filePath);
+        await store.load();
+
+        const twoHours = 2 * 60 * 60 * 1000;
+        assert.strictEqual(store.getMostRecentSeverity(undefined, twoHours), undefined);
+    });
+
+    test('getMostRecentSeverity returns undefined for unknown session', () => {
+        assert.strictEqual(store.getMostRecentSeverity('nonexistent-session'), undefined);
+    });
 });

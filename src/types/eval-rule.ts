@@ -85,6 +85,8 @@ export interface SentinelConfigFile {
     observation_window_hours?: number;
     /** How to determine the severity icon for session groups: 'recent' or 'highest'. Defaults to 'recent'. */
     session_severity_mode?: 'recent' | 'highest';
+    /** How to compute the status bar severity: 'recent' (most recent observation) or 'highest' (max severity in window). Defaults to 'recent'. */
+    status_bar_severity_mode?: 'recent' | 'highest';
     defaults: {
         execution: string;
         model: string;

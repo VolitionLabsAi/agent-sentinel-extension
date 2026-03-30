@@ -712,15 +712,28 @@ export function activate(context: vscode.ExtensionContext) {
 
     // --- Observation Severity → Status Bar ---
 
-    /** Recompute highest severity for the current filter scope and update the status bar. */
+    /** Recompute severity for the current filter scope and update the status bar. */
     function updateStatusBarSeverity(): void {
-        const mode = observationsProvider.getViewMode();
-        const sessionFilter = mode === 'all' ? undefined : observationsProvider.getSessionFilter();
+        const viewMode = observationsProvider.getViewMode();
+        const sessionFilter = viewMode === 'all' ? undefined : observationsProvider.getSessionFilter();
         // In "all" mode, apply a configurable recency window so stale observations
         // don't keep the status bar permanently colored (default 24 hours).
-        const windowMs = mode === 'all' ? configManager.getObservationWindowMs() : 0;
+        const windowMs = viewMode === 'all' ? configManager.getObservationWindowMs() : 0;
         const maxAgeMs = windowMs > 0 ? windowMs : undefined;
-        const severity = observationStore.getHighestSeverity(sessionFilter ?? undefined, maxAgeMs);
+
+        const statusBarMode = configManager.getStatusBarSeverityMode();
+        let severity: 'none' | 'info' | 'warning' | 'critical';
+        if (statusBarMode === 'recent') {
+            // Show the severity of the most recent observation within the window.
+            // Returns undefined when no observations exist in the window → show 'none'.
+            const recentSev = observationStore.getMostRecentSeverity(sessionFilter ?? undefined, maxAgeMs);
+            severity = (recentSev as 'info' | 'warning' | 'critical' | undefined) ?? 'none';
+        } else {
+            // 'highest' mode: show the worst severity across all observations in the window.
+            // getHighestSeverity already returns 'none' when no observations exist in the window.
+            severity = observationStore.getHighestSeverity(sessionFilter ?? undefined, maxAgeMs);
+        }
+
         const counts = observationStore.getSeverityCounts(sessionFilter ?? undefined, maxAgeMs);
         statusBar.setHighestSeverity(severity);
         statusBar.setSeverityCounts(counts);

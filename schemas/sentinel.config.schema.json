@@ -27,6 +27,13 @@
       "description": "How to determine the severity icon for session groups in Observations. 'recent' shows the most recent observation's severity. 'highest' shows the highest severity across all observations in the session.",
       "markdownDescription": "How to determine the severity icon for session groups in Observations.\n- `recent` — most recent observation's severity\n- `highest` — highest severity across all observations in the session"
     },
+    "status_bar_severity_mode": {
+      "type": "string",
+      "enum": ["recent", "highest"],
+      "default": "recent",
+      "description": "How to compute the status bar severity indicator. 'recent' shows the most recent observation's severity within the window. 'highest' shows the highest severity across all observations within the window.",
+      "markdownDescription": "How to compute the status bar severity indicator.\n- `recent` — severity of the most recent observation within the window (default)\n- `highest` — highest severity across all observations within the window"
+    },
     "auto_start": {
       "type": "boolean",
       "description": "Automatically start sentinel monitoring when a new agent session is detected.",

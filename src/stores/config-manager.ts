@@ -400,6 +400,21 @@ export class ConfigManager implements vscode.Disposable {
     }
 
     /**
+     * Returns the status bar severity mode from the first folder's config.
+     * Controls whether the status bar shows the most recent or highest severity
+     * within the observation window.
+     * Defaults to 'recent' if not set.
+     */
+    getStatusBarSeverityMode(): 'recent' | 'highest' {
+        for (const folder of this.folders.values()) {
+            if (folder.config?.status_bar_severity_mode !== undefined) {
+                return folder.config.status_bar_severity_mode;
+            }
+        }
+        return 'recent';
+    }
+
+    /**
      * Returns the session severity mode from the first folder's config.
      * Defaults to 'recent' if not set.
      */
