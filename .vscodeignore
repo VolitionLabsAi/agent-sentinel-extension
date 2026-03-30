@@ -5,6 +5,9 @@ src/**
 node_modules/**
 .github/**
 docs/**
+docs-site/**
+benchmarks/**
+eval-packs/**
 .eslintrc.json
 .prettierrc
 .gitignore
