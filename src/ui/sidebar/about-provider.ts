@@ -322,15 +322,6 @@ export class AboutProvider implements vscode.WebviewViewProvider {
     <div class="filter-row" id="detail-row" style="${initialDetail ? '' : 'display:none'}">
         <span class="filter-detail" id="detail">${initialDetail}</span>
     </div>
-    <div class="links">
-        <a id="settings" href="#">Settings</a>
-        <span class="separator">&middot;</span>
-        <a id="health" href="#">Health Check</a>
-        <span class="separator">&middot;</span>
-        <a id="docs" href="#">Docs</a>
-        <span class="separator">&middot;</span>
-        <span class="version">v${version}</span>
-    </div>
     <div class="time-window-row">
         <span class="time-label">Window:</span>
         <button class="time-preset" data-hours="24">24h</button>
@@ -339,6 +330,15 @@ export class AboutProvider implements vscode.WebviewViewProvider {
         <button class="time-preset" data-hours="720">30d</button>
         <button class="time-preset" data-hours="0">All</button>
         <button class="time-custom">Custom...</button>
+    </div>
+    <div class="links">
+        <a id="settings" href="#">Settings</a>
+        <span class="separator">&middot;</span>
+        <a id="health" href="#">Health Check</a>
+        <span class="separator">&middot;</span>
+        <a id="docs" href="#">Docs</a>
+        <span class="separator">&middot;</span>
+        <span class="version">v${version}</span>
     </div>
     <script nonce="${nonce}">
         (function() {
