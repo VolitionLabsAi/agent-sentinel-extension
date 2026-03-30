@@ -674,6 +674,25 @@ export function activate(context: vscode.ExtensionContext) {
         sessionCorrelator.setActiveSessionFilePath(activeSessionPath);
     }
 
+    // --- Observation Severity → Status Bar ---
+
+    /** Recompute highest severity for the current filter scope and update the status bar. */
+    function updateStatusBarSeverity(): void {
+        const mode = liveFeedProvider.getViewMode();
+        const sessionFilter = mode === 'all' ? undefined : liveFeedProvider.getSessionFilter();
+        const severity = observationStore.getHighestSeverity(sessionFilter ?? undefined);
+        const counts = observationStore.getSeverityCounts(sessionFilter ?? undefined);
+        statusBar.setHighestSeverity(severity);
+        statusBar.setSeverityCounts(counts);
+    }
+
+    // Update severity whenever a new observation arrives
+    context.subscriptions.push(
+        observationStore.onObservationReceived(() => {
+            updateStatusBarSeverity();
+        }),
+    );
+
     // --- P1-08: Multi-Session View Modes ---
 
     // Default view mode is 'all'; view mode is ephemeral (not persisted to settings)
@@ -711,6 +730,9 @@ export function activate(context: vscode.ExtensionContext) {
 
         // Update the header panel with detailed filter info
         aboutProvider.updateFilterState(mode, liveFeedProvider, sessionCorrelator, stateManager);
+
+        // Recompute severity for the new scope
+        updateStatusBarSeverity();
     }
 
     // Subscribe to active session changes → update filter when in 'active' mode

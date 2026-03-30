@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { StatusBarManager, type HealthState } from '../../ui/status-bar';
+import { StatusBarManager, type HealthState, type ObservationSeverityLevel } from '../../ui/status-bar';
 
 // Access the test helpers from our vscode mock
 const vscodeMock = vscode as unknown as {
@@ -40,9 +40,10 @@ interface StatusBarManagerTestable {
         _visible: boolean;
     };
     info: {
-        healthState: HealthState;
+        initialized: boolean;
+        highestSeverity: ObservationSeverityLevel;
         sessionCount: number;
-        lastObservationSeverity: string | undefined;
+        severityCounts: { info: number; warning: number; critical: number };
         sessionContext: string | undefined;
     };
 }
@@ -74,39 +75,58 @@ suite('StatusBarManager', () => {
         manager?.dispose();
     });
 
-    // ── Health state icon and color mapping ───────────────────
+    // ── Not-initialized state ────────────────────────────────
 
-    test('not-initialized state shows shield icon', () => {
+    test('not-initialized state shows shield icon with disabled color', () => {
         manager.setHealthState('not-initialized');
         const internal = manager as unknown as StatusBarManagerTestable;
         assert.ok(internal.item.text.includes('$(shield)'), `Expected shield icon, got: ${internal.item.text}`);
-    });
-
-    test('idle state shows shield icon with blue color', () => {
-        manager.setHealthState('idle');
-        const internal = manager as unknown as StatusBarManagerTestable;
-        assert.ok(internal.item.text.includes('$(shield)'), `Expected shield icon, got: ${internal.item.text}`);
-        // Foreground should be charts.blue ThemeColor
         assert.ok(internal.item.color instanceof vscode.ThemeColor);
     });
 
-    test('running state shows eye icon with green color', () => {
+    test('setHealthState idle marks as initialized with eye icon', () => {
+        manager.setHealthState('idle');
+        const internal = manager as unknown as StatusBarManagerTestable;
+        assert.ok(internal.info.initialized, 'Should be initialized');
+        assert.ok(internal.item.text.includes('$(eye)'), `Expected eye icon, got: ${internal.item.text}`);
+    });
+
+    test('setHealthState running marks as initialized', () => {
         manager.setHealthState('running');
+        const internal = manager as unknown as StatusBarManagerTestable;
+        assert.ok(internal.info.initialized, 'Should be initialized');
+        assert.ok(internal.item.text.includes('$(eye)'), `Expected eye icon, got: ${internal.item.text}`);
+    });
+
+    // ── Severity-driven icons and colors ─────────────────────
+
+    test('severity none shows eye icon with green color', () => {
+        manager.setInitialized(true);
+        manager.setHighestSeverity('none');
         const internal = manager as unknown as StatusBarManagerTestable;
         assert.ok(internal.item.text.includes('$(eye)'), `Expected eye icon, got: ${internal.item.text}`);
         assert.ok(internal.item.color instanceof vscode.ThemeColor);
     });
 
-    test('degraded state shows warning icon with warning background', () => {
-        manager.setHealthState('degraded');
+    test('severity info shows eye icon with green color', () => {
+        manager.setInitialized(true);
+        manager.setHighestSeverity('info');
+        const internal = manager as unknown as StatusBarManagerTestable;
+        assert.ok(internal.item.text.includes('$(eye)'), `Expected eye icon, got: ${internal.item.text}`);
+        assert.ok(internal.item.color instanceof vscode.ThemeColor);
+    });
+
+    test('severity warning shows warning icon with warning background', () => {
+        manager.setInitialized(true);
+        manager.setHighestSeverity('warning');
         const internal = manager as unknown as StatusBarManagerTestable;
         assert.ok(internal.item.text.includes('$(warning)'), `Expected warning icon, got: ${internal.item.text}`);
-        // Background should be warningBackground ThemeColor
         assert.ok(internal.item.backgroundColor instanceof vscode.ThemeColor);
     });
 
-    test('error state shows error icon with error background', () => {
-        manager.setHealthState('error');
+    test('severity critical shows error icon with error background', () => {
+        manager.setInitialized(true);
+        manager.setHighestSeverity('critical');
         const internal = manager as unknown as StatusBarManagerTestable;
         assert.ok(internal.item.text.includes('$(error)'), `Expected error icon, got: ${internal.item.text}`);
         assert.ok(internal.item.backgroundColor instanceof vscode.ThemeColor);
@@ -138,40 +158,51 @@ suite('StatusBarManager', () => {
         assert.strictEqual(internal.info.sessionCount, 3);
     });
 
-    test('setLastObservationSeverity updates info', () => {
-        manager.setLastObservationSeverity('warning');
+    test('setSeverityCounts updates info', () => {
+        manager.setSeverityCounts({ info: 5, warning: 2, critical: 1 });
         const internal = manager as unknown as StatusBarManagerTestable;
-        assert.strictEqual(internal.info.lastObservationSeverity, 'warning');
+        assert.deepStrictEqual(internal.info.severityCounts, { info: 5, warning: 2, critical: 1 });
     });
 
     test('update() sets multiple fields at once', () => {
         manager.update({
-            healthState: 'running',
+            initialized: true,
+            highestSeverity: 'warning',
             sessionCount: 5,
             sessionContext: 'batch-session',
         });
         const internal = manager as unknown as StatusBarManagerTestable;
-        assert.strictEqual(internal.info.healthState, 'running');
+        assert.strictEqual(internal.info.initialized, true);
+        assert.strictEqual(internal.info.highestSeverity, 'warning');
         assert.strictEqual(internal.info.sessionCount, 5);
         assert.ok(internal.item.text.includes('batch-session'));
     });
 
     // ── Tooltip content ──────────────────────────────────────
 
-    test('tooltip includes health label and session count', () => {
-        manager.setHealthState('idle');
+    test('tooltip includes severity info and session count when initialized', () => {
+        manager.setInitialized(true);
         manager.setSessionCount(2);
         const internal = manager as unknown as StatusBarManagerTestable;
         const tooltip = internal.item.tooltip as vscode.MarkdownString;
-        assert.ok(tooltip.value.includes('Idle'), 'Tooltip should include health label');
+        assert.ok(tooltip.value.includes('No observations'), 'Tooltip should include severity label');
         assert.ok(tooltip.value.includes('2'), 'Tooltip should include session count');
     });
 
-    test('tooltip includes observation severity when set', () => {
-        manager.setLastObservationSeverity('critical');
+    test('tooltip includes not-initialized status when not initialized', () => {
+        manager.setHealthState('not-initialized');
         const internal = manager as unknown as StatusBarManagerTestable;
         const tooltip = internal.item.tooltip as vscode.MarkdownString;
-        assert.ok(tooltip.value.includes('critical'), 'Tooltip should include severity');
+        assert.ok(tooltip.value.includes('Not Initialized'), 'Tooltip should include not initialized status');
+    });
+
+    test('tooltip includes severity counts when set', () => {
+        manager.setInitialized(true);
+        manager.setSeverityCounts({ info: 3, warning: 1, critical: 0 });
+        const internal = manager as unknown as StatusBarManagerTestable;
+        const tooltip = internal.item.tooltip as vscode.MarkdownString;
+        assert.ok(tooltip.value.includes('1 warning'), 'Tooltip should include warning count');
+        assert.ok(tooltip.value.includes('3 info'), 'Tooltip should include info count');
     });
 
     test('tooltip includes click hint for view mode', () => {

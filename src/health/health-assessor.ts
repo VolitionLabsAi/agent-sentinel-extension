@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { SentinelCLI } from '../cli/sentinel-cli.js';
-import { StatusBarManager, type HealthState } from '../ui/status-bar.js';
+import type { HealthState } from '../ui/status-bar.js';
 
 /**
  * Event payload emitted when the health state changes.
@@ -8,6 +8,14 @@ import { StatusBarManager, type HealthState } from '../ui/status-bar.js';
 export interface HealthChangedEvent {
     state: HealthState;
     message?: string;
+}
+
+/**
+ * Minimal interface for status bar initialization updates.
+ * The health assessor only sets initialized state (not colors/severity).
+ */
+interface StatusBarInitSink {
+    setHealthState(state: HealthState): void;
 }
 
 /**
@@ -36,7 +44,7 @@ interface DoctorOutput {
 export class HealthAssessor implements vscode.Disposable {
     private readonly disposables: vscode.Disposable[] = [];
     private readonly cli: SentinelCLI;
-    private readonly statusBar: StatusBarManager;
+    private readonly statusBar: StatusBarInitSink;
 
     private readonly _onHealthChanged = new vscode.EventEmitter<HealthChangedEvent>();
     readonly onHealthChanged = this._onHealthChanged.event;
@@ -45,7 +53,7 @@ export class HealthAssessor implements vscode.Disposable {
     private intervalHandle: ReturnType<typeof setInterval> | undefined;
     private _isRunning = false;
 
-    constructor(cli: SentinelCLI, statusBar: StatusBarManager) {
+    constructor(cli: SentinelCLI, statusBar: StatusBarInitSink) {
         this.cli = cli;
         this.statusBar = statusBar;
         this.disposables.push(this._onHealthChanged);

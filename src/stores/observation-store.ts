@@ -66,6 +66,9 @@ export class ObservationStore implements vscode.Disposable {
     /** Per-session cache of ALL observations from disk (append-only, so safe to cache aggressively). */
     private readonly sessionDiskCache: Map<string, { observations: PersistentObservation[]; timestamp: number }> = new Map();
 
+    /** Running tally of severity counts per session for efficient highest-severity lookups. */
+    private readonly severityTally: Map<string, { info: number; warning: number; critical: number }> = new Map();
+
     private readonly _onObservationReceived = new vscode.EventEmitter<PersistentObservation>();
     public readonly onObservationReceived: vscode.Event<PersistentObservation> = this._onObservationReceived.event;
 
@@ -109,6 +112,7 @@ export class ObservationStore implements vscode.Disposable {
         this.sessionHistory.clear();
         this.historyCache.clear();
         this.sessionDiskCache.clear();
+        this.severityTally.clear();
         for (const state of this.folders.values()) {
             state.byteOffset = 0;
         }
@@ -151,6 +155,7 @@ export class ObservationStore implements vscode.Disposable {
             this.sessionHistory.clear();
             this.historyCache.clear();
             this.sessionDiskCache.clear();
+            this.severityTally.clear();
             await this.readNewLines(folderState);
             return;
         }
@@ -224,6 +229,17 @@ export class ObservationStore implements vscode.Disposable {
             this.sessionHistory.set(sessionId, histState);
         }
         histState.totalCount++;
+
+        // Maintain severity tally
+        let tally = this.severityTally.get(sessionId);
+        if (!tally) {
+            tally = { info: 0, warning: 0, critical: 0 };
+            this.severityTally.set(sessionId, tally);
+        }
+        const sev = obs.severity as 'info' | 'warning' | 'critical';
+        if (sev in tally) {
+            tally[sev]++;
+        }
 
         // Evict oldest if over the limit for this session
         if (sessionObs.length > this.maxObservations) {
@@ -401,12 +417,59 @@ export class ObservationStore implements vscode.Disposable {
     }
 
     /**
+     * Compute the highest severity across observations in scope.
+     * If sessionFilter is provided, only that session is considered;
+     * otherwise all sessions are considered.
+     */
+    getHighestSeverity(sessionFilter?: string): 'none' | 'info' | 'warning' | 'critical' {
+        const tallies = sessionFilter
+            ? [this.severityTally.get(sessionFilter)].filter(Boolean) as Array<{ info: number; warning: number; critical: number }>
+            : Array.from(this.severityTally.values());
+
+        let hasCritical = false;
+        let hasWarning = false;
+        let hasInfo = false;
+
+        for (const tally of tallies) {
+            if (tally.critical > 0) { hasCritical = true; }
+            if (tally.warning > 0) { hasWarning = true; }
+            if (tally.info > 0) { hasInfo = true; }
+            if (hasCritical) { break; } // short-circuit
+        }
+
+        if (hasCritical) { return 'critical'; }
+        if (hasWarning) { return 'warning'; }
+        if (hasInfo) { return 'info'; }
+        return 'none';
+    }
+
+    /**
+     * Get aggregated severity counts across sessions in scope.
+     * If sessionFilter is provided, only that session is considered.
+     */
+    getSeverityCounts(sessionFilter?: string): { info: number; warning: number; critical: number } {
+        const result = { info: 0, warning: 0, critical: 0 };
+        const tallies = sessionFilter
+            ? [this.severityTally.get(sessionFilter)].filter(Boolean) as Array<{ info: number; warning: number; critical: number }>
+            : Array.from(this.severityTally.values());
+
+        for (const tally of tallies) {
+            result.info += tally.info;
+            result.warning += tally.warning;
+            result.critical += tally.critical;
+        }
+
+        return result;
+    }
+
+    /**
      * Remove all observations for a given session.
      */
     clearSession(sessionId: string): void {
         this.observations.delete(sessionId);
         this.sessionHistory.delete(sessionId);
         this.sessionDiskCache.delete(sessionId);
+        this.severityTally.delete(sessionId);
         // Invalidate any cached history for this session
         for (const key of this.historyCache.keys()) {
             if (key.startsWith(`${sessionId}:`)) {
@@ -422,5 +485,6 @@ export class ObservationStore implements vscode.Disposable {
         this.sessionHistory.clear();
         this.historyCache.clear();
         this.sessionDiskCache.clear();
+        this.severityTally.clear();
     }
 }
