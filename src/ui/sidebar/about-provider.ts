@@ -15,8 +15,15 @@ export class AboutProvider implements vscode.WebviewViewProvider {
     private webviewView: vscode.WebviewView | undefined;
     private filterMode: ViewMode = 'all';
     private filterDetail = '';
+    private lastEvalTimestamp: string | undefined;
 
     constructor(private readonly extensionUri: vscode.Uri) {}
+
+    /** Update the last-eval timestamp shown in the status pill. */
+    updateLastEvalTime(timestamp: string | undefined): void {
+        this.lastEvalTimestamp = timestamp;
+        this.pushStateToWebview();
+    }
 
     /**
      * Called by extension.ts whenever the filter mode changes.
@@ -116,6 +123,7 @@ export class AboutProvider implements vscode.WebviewViewProvider {
             type: 'updateFilter',
             mode: this.filterMode,
             detail: this.filterDetail,
+            lastEvalTimestamp: this.lastEvalTimestamp,
         });
     }
 
@@ -197,9 +205,28 @@ export class AboutProvider implements vscode.WebviewViewProvider {
             color: var(--vscode-descriptionForeground);
             font-size: 0.8em;
         }
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            margin-bottom: 4px;
+            background: var(--vscode-badge-background, transparent);
+            color: var(--vscode-badge-foreground, var(--vscode-foreground));
+        }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+        .status-dot.fresh  { background: var(--vscode-testing-iconPassed, #388a34); }
+        .status-dot.recent { background: var(--vscode-editorWarning-foreground, #ff9800); }
+        .status-dot.stale  { background: var(--vscode-disabledForeground, #888); }
     </style>
 </head>
 <body>
+    <div class="status-pill" id="status-pill" style="display:none">
+        <span class="status-dot" id="status-dot"></span>
+        <span id="status-text">Last eval --</span>
+    </div>
     <div class="filter-row">
         <span class="filter-label">Viewing:</span>
         <span class="filter-value" id="mode">${initialModeLabel}</span>
@@ -223,6 +250,26 @@ export class AboutProvider implements vscode.WebviewViewProvider {
             const vscode = acquireVsCodeApi();
             const modeLabels = { all: 'All Sessions', recent: 'Recent Session', pinned: 'Pinned Session' };
 
+            var lastTimestamp = null;
+            function updateStatusPill(timestamp) {
+                lastTimestamp = timestamp;
+                var pill = document.getElementById('status-pill');
+                if (!timestamp) { pill.style.display = 'none'; return; }
+                pill.style.display = '';
+                var elapsed = Date.now() - new Date(timestamp).getTime();
+                var seconds = Math.floor(elapsed / 1000);
+                var text, colorClass;
+                if (seconds < 60) { text = seconds + 's ago'; }
+                else if (seconds < 3600) { text = Math.floor(seconds / 60) + 'm ago'; }
+                else { text = Math.floor(seconds / 3600) + 'h ago'; }
+                if (seconds < 120) { colorClass = 'fresh'; }
+                else if (seconds < 600) { colorClass = 'recent'; }
+                else { colorClass = 'stale'; }
+                document.getElementById('status-text').textContent = 'Last eval ' + text;
+                document.getElementById('status-dot').className = 'status-dot ' + colorClass;
+            }
+            setInterval(function() { if (lastTimestamp) { updateStatusPill(lastTimestamp); } }, 30000);
+
             window.addEventListener('message', function(event) {
                 const msg = event.data;
                 if (msg.type === 'updateFilter') {
@@ -235,6 +282,7 @@ export class AboutProvider implements vscode.WebviewViewProvider {
                     } else {
                         detailRow.style.display = 'none';
                     }
+                    updateStatusPill(msg.lastEvalTimestamp || null);
                 }
             });
 

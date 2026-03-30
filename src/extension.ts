@@ -680,10 +680,11 @@ export function activate(context: vscode.ExtensionContext) {
         statusBar.setSeverityCounts(counts);
     }
 
-    // Update severity whenever a new observation arrives
+    // Update severity and last-eval pill whenever a new observation arrives
     context.subscriptions.push(
-        observationStore.onObservationReceived(() => {
+        observationStore.onObservationReceived((obs) => {
             updateStatusBarSeverity();
+            aboutProvider.updateLastEvalTime(obs.timestamp);
         }),
     );
 
@@ -932,7 +933,12 @@ export function activate(context: vscode.ExtensionContext) {
     );
 
     // Initial load (fire-and-forget; errors are logged inside the stores)
-    observationStore.load().catch((err) => {
+    observationStore.load().then(() => {
+        const allObs = observationStore.getObservations();
+        if (allObs.length > 0) {
+            aboutProvider.updateLastEvalTime(allObs[allObs.length - 1].timestamp);
+        }
+    }).catch((err) => {
         console.warn('[Agent Sentinel] Initial observation load failed:', err);
     });
 
