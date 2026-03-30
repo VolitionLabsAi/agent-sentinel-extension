@@ -31,7 +31,7 @@ export function getSessionHealthHtml(nonce: string, cspSource: string): string {
             <div class="metrics-grid" role="group" aria-label="Summary metrics">
                 <div class="metric-card" tabindex="0" aria-label="Evaluation count">
                     <span class="metric-value" id="eval-count">0</span>
-                    <span class="metric-label">Evaluations</span>
+                    <span class="metric-label">Evals</span>
                 </div>
                 <div class="metric-card" tabindex="0" aria-label="Corrections count">
                     <span class="metric-value" id="corrections">0</span>

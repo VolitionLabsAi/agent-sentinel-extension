@@ -12,7 +12,7 @@ export const STYLES = `
     --health-spacing-sm: 8px;
     --health-spacing-md: 12px;
     --health-spacing-lg: 16px;
-    --health-border-radius: 4px;
+    --card-radius: 6px;
 }
 
 * {
@@ -22,12 +22,12 @@ export const STYLES = `
 }
 
 body {
-    font-family: var(--vscode-font-family);
-    font-size: var(--vscode-font-size);
-    color: var(--vscode-foreground);
-    background-color: var(--vscode-sideBar-background);
+    font-family: var(--vscode-font-family, system-ui, -apple-system, sans-serif);
+    font-size: var(--vscode-font-size, 13px);
+    color: var(--vscode-editor-foreground);
+    background-color: var(--vscode-editor-background);
     padding: var(--health-spacing-md);
-    line-height: 1.4;
+    line-height: 1.5;
 }
 
 .metrics-grid {
@@ -38,25 +38,26 @@ body {
 }
 
 .metric-card {
-    background: var(--vscode-editorWidget-background);
-    border: 1px solid var(--vscode-editorWidget-border);
-    border-radius: var(--health-border-radius);
+    background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+    border: 1px solid var(--vscode-panel-border, var(--vscode-widget-border, transparent));
+    border-radius: var(--card-radius);
     padding: var(--health-spacing-sm) var(--health-spacing-md);
     text-align: center;
 }
 
 .metric-value {
-    font-size: 1.4em;
-    font-weight: bold;
-    color: var(--vscode-foreground);
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--vscode-editor-foreground);
     display: block;
 }
 
 .metric-label {
-    font-size: 0.85em;
-    color: var(--vscode-descriptionForeground);
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground, #888);
     display: block;
-    margin-top: var(--health-spacing-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .section {
