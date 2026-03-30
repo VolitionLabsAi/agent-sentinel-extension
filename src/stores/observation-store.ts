@@ -428,8 +428,20 @@ export class ObservationStore implements vscode.Disposable {
      * Compute the highest severity across observations in scope.
      * If sessionFilter is provided, only that session is considered;
      * otherwise all sessions are considered.
+     *
+     * When maxAgeMs is provided, only observations newer than
+     * `Date.now() - maxAgeMs` are considered (falls back to scanning
+     * in-memory observations since tallies don't track timestamps).
      */
-    getHighestSeverity(sessionFilter?: string): 'none' | 'info' | 'warning' | 'critical' {
+    getHighestSeverity(sessionFilter?: string, maxAgeMs?: number): 'none' | 'info' | 'warning' | 'critical' {
+        if (maxAgeMs !== undefined) {
+            const counts = this.computeRecencyCounts(sessionFilter, maxAgeMs);
+            if (counts.critical > 0) { return 'critical'; }
+            if (counts.warning > 0) { return 'warning'; }
+            if (counts.info > 0) { return 'info'; }
+            return 'none';
+        }
+
         const tallies = sessionFilter
             ? [this.severityTally.get(sessionFilter)].filter(Boolean) as Array<{ info: number; warning: number; critical: number }>
             : Array.from(this.severityTally.values());
@@ -454,8 +466,15 @@ export class ObservationStore implements vscode.Disposable {
     /**
      * Get aggregated severity counts across sessions in scope.
      * If sessionFilter is provided, only that session is considered.
+     *
+     * When maxAgeMs is provided, only observations newer than
+     * `Date.now() - maxAgeMs` are considered.
      */
-    getSeverityCounts(sessionFilter?: string): { info: number; warning: number; critical: number } {
+    getSeverityCounts(sessionFilter?: string, maxAgeMs?: number): { info: number; warning: number; critical: number } {
+        if (maxAgeMs !== undefined) {
+            return this.computeRecencyCounts(sessionFilter, maxAgeMs);
+        }
+
         const result = { info: 0, warning: 0, critical: 0 };
         const tallies = sessionFilter
             ? [this.severityTally.get(sessionFilter)].filter(Boolean) as Array<{ info: number; warning: number; critical: number }>
@@ -465,6 +484,36 @@ export class ObservationStore implements vscode.Disposable {
             result.info += tally.info;
             result.warning += tally.warning;
             result.critical += tally.critical;
+        }
+
+        return result;
+    }
+
+    /**
+     * Scan in-memory observations and compute severity counts for those
+     * newer than `Date.now() - maxAgeMs`. Used as a fallback when the
+     * tally-based fast path can't answer recency-filtered queries.
+     */
+    private computeRecencyCounts(
+        sessionFilter: string | undefined,
+        maxAgeMs: number,
+    ): { info: number; warning: number; critical: number } {
+        const cutoff = Date.now() - maxAgeMs;
+        const result = { info: 0, warning: 0, critical: 0 };
+
+        const sources = sessionFilter
+            ? [this.observations.get(sessionFilter)].filter(Boolean) as PersistentObservation[][]
+            : Array.from(this.observations.values());
+
+        for (const sessionObs of sources) {
+            for (const obs of sessionObs) {
+                if (new Date(obs.timestamp).getTime() > cutoff) {
+                    const sev = obs.severity as 'info' | 'warning' | 'critical';
+                    if (sev in result) {
+                        result[sev]++;
+                    }
+                }
+            }
         }
 
         return result;

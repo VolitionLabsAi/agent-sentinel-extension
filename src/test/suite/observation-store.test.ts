@@ -438,6 +438,103 @@ suite('ObservationStore', () => {
         assert.deepStrictEqual(store.getSeverityCounts('sess-1'), { info: 0, warning: 0, critical: 0 });
     });
 
+    // --- Recency filter tests ---
+
+    test('getHighestSeverity with maxAgeMs excludes old observations', async () => {
+        const filePath = path.join(tmpDir, 'obs.jsonl');
+        const oldTime = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(); // 4 hours ago
+        const recentTime = new Date(Date.now() - 30 * 60 * 1000).toISOString(); // 30 min ago
+
+        writeObservations(filePath, [
+            makeObservation({ session_id: 'sess-1', severity: 'critical', timestamp: oldTime }),
+            makeObservation({ session_id: 'sess-1', severity: 'info', timestamp: recentTime }),
+        ]);
+
+        store.addFolder('folder1', filePath);
+        await store.load();
+
+        // Without maxAgeMs: critical (tally-based)
+        assert.strictEqual(store.getHighestSeverity(), 'critical');
+
+        // With 2-hour window: only the recent info observation counts
+        const twoHours = 2 * 60 * 60 * 1000;
+        assert.strictEqual(store.getHighestSeverity(undefined, twoHours), 'info');
+    });
+
+    test('getSeverityCounts with maxAgeMs excludes old observations', async () => {
+        const filePath = path.join(tmpDir, 'obs.jsonl');
+        const oldTime = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString();
+        const recentTime = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+
+        writeObservations(filePath, [
+            makeObservation({ session_id: 'sess-1', severity: 'critical', timestamp: oldTime }),
+            makeObservation({ session_id: 'sess-1', severity: 'warning', timestamp: oldTime }),
+            makeObservation({ session_id: 'sess-1', severity: 'info', timestamp: recentTime }),
+            makeObservation({ session_id: 'sess-1', severity: 'warning', timestamp: recentTime }),
+        ]);
+
+        store.addFolder('folder1', filePath);
+        await store.load();
+
+        const twoHours = 2 * 60 * 60 * 1000;
+        const counts = store.getSeverityCounts(undefined, twoHours);
+        assert.strictEqual(counts.critical, 0, 'old critical should be excluded');
+        assert.strictEqual(counts.warning, 1, 'only recent warning should count');
+        assert.strictEqual(counts.info, 1, 'recent info should count');
+    });
+
+    test('getHighestSeverity with maxAgeMs returns none when all observations are old', async () => {
+        const filePath = path.join(tmpDir, 'obs.jsonl');
+        const oldTime = new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString();
+
+        writeObservations(filePath, [
+            makeObservation({ session_id: 'sess-1', severity: 'critical', timestamp: oldTime }),
+            makeObservation({ session_id: 'sess-1', severity: 'warning', timestamp: oldTime }),
+        ]);
+
+        store.addFolder('folder1', filePath);
+        await store.load();
+
+        const twoHours = 2 * 60 * 60 * 1000;
+        assert.strictEqual(store.getHighestSeverity(undefined, twoHours), 'none');
+        const counts = store.getSeverityCounts(undefined, twoHours);
+        assert.deepStrictEqual(counts, { info: 0, warning: 0, critical: 0 });
+    });
+
+    test('getHighestSeverity with maxAgeMs respects session filter', async () => {
+        const filePath = path.join(tmpDir, 'obs.jsonl');
+        const recentTime = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+
+        writeObservations(filePath, [
+            makeObservation({ session_id: 'sess-1', severity: 'info', timestamp: recentTime }),
+            makeObservation({ session_id: 'sess-2', severity: 'critical', timestamp: recentTime }),
+        ]);
+
+        store.addFolder('folder1', filePath);
+        await store.load();
+
+        const twoHours = 2 * 60 * 60 * 1000;
+        assert.strictEqual(store.getHighestSeverity('sess-1', twoHours), 'info');
+        assert.strictEqual(store.getHighestSeverity('sess-2', twoHours), 'critical');
+    });
+
+    test('without maxAgeMs all observations count (existing behavior preserved)', async () => {
+        const filePath = path.join(tmpDir, 'obs.jsonl');
+        const veryOldTime = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(); // 2 days ago
+
+        writeObservations(filePath, [
+            makeObservation({ session_id: 'sess-1', severity: 'critical', timestamp: veryOldTime }),
+        ]);
+
+        store.addFolder('folder1', filePath);
+        await store.load();
+
+        // Without maxAgeMs, the old critical still counts
+        assert.strictEqual(store.getHighestSeverity(), 'critical');
+        const counts = store.getSeverityCounts();
+        assert.strictEqual(counts.critical, 1);
+    });
+
     test('severity counts are accurate after eviction', async () => {
         const filePath = path.join(tmpDir, 'obs.jsonl');
         const smallStore = new ObservationStore(3);

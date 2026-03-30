@@ -680,8 +680,11 @@ export function activate(context: vscode.ExtensionContext) {
     function updateStatusBarSeverity(): void {
         const mode = liveFeedProvider.getViewMode();
         const sessionFilter = mode === 'all' ? undefined : liveFeedProvider.getSessionFilter();
-        const severity = observationStore.getHighestSeverity(sessionFilter ?? undefined);
-        const counts = observationStore.getSeverityCounts(sessionFilter ?? undefined);
+        // In "all" mode, apply a 2-hour recency window so stale observations
+        // don't keep the status bar permanently colored.
+        const maxAgeMs = mode === 'all' ? 2 * 60 * 60 * 1000 : undefined;
+        const severity = observationStore.getHighestSeverity(sessionFilter ?? undefined, maxAgeMs);
+        const counts = observationStore.getSeverityCounts(sessionFilter ?? undefined, maxAgeMs);
         statusBar.setHighestSeverity(severity);
         statusBar.setSeverityCounts(counts);
     }
