@@ -41,7 +41,7 @@ function relativeTime(isoTimestamp: string): string {
  * A top-level observation tree item — collapsible, with severity icon and action badge.
  */
 export class ObservationTreeItem extends vscode.TreeItem {
-    constructor(public readonly observation: PersistentObservation) {
+    constructor(public readonly observation: PersistentObservation, sessionLabel?: string) {
         const badge = observation.hook_type === 'pre' ? 'PREVENTED' : 'OBSERVED';
         const meta = SEVERITY_META[observation.severity] ?? STATUS_META;
 
@@ -65,6 +65,8 @@ export class ObservationTreeItem extends vscode.TreeItem {
             };
         }
 
+        const displaySession = sessionLabel ?? observation.session_id;
+
         this.tooltip = new vscode.MarkdownString(
             [
                 `**${meta.label}** — ${observation.eval_id}`,
@@ -74,7 +76,7 @@ export class ObservationTreeItem extends vscode.TreeItem {
                 `**Sentinel:** ${observation.sentinel_label} (${observation.sentinel_name})`,
                 `**Tier:** ${observation.tier}  |  **Hook:** ${observation.hook_type}  |  **Action:** ${badge}`,
                 `**Turn:** ${observation.turn_number}  |  **Duration:** ${observation.duration_ms}ms`,
-                `**Session:** ${observation.session_id}`,
+                `**Session:** ${displaySession}`,
                 `**Timestamp:** ${observation.timestamp}`,
                 '',
                 observation.analysis ? `---\n${observation.analysis}` : '',

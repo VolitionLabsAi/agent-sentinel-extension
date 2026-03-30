@@ -214,7 +214,7 @@ export function activate(context: vscode.ExtensionContext) {
         }),
     );
 
-    const liveFeedProvider = new LiveFeedProvider(observationStore);
+    const liveFeedProvider = new LiveFeedProvider(observationStore, stateManager);
     context.subscriptions.push(liveFeedProvider);
 
     const treeView = vscode.window.createTreeView('sentinel.liveFeed', {

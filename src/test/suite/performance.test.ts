@@ -1,6 +1,7 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { ObservationStore } from '../../stores/observation-store';
+import { StateManager } from '../../stores/state-manager';
 import { ConfigManager } from '../../stores/config-manager';
 import { LiveFeedProvider } from '../../ui/sidebar/live-feed-provider';
 import { PersistentObservation } from '../../types/observation';
@@ -208,7 +209,7 @@ suite('Performance Gates', () => {
             (store as unknown as ObservationStoreTestable).addObservation(createTestObservation('feed-session', i));
         }
 
-        const provider = new LiveFeedProvider(store);
+        const provider = new LiveFeedProvider(store, new StateManager());
         provider.setViewMode('all');
 
         const start = performance.now();
@@ -243,7 +244,7 @@ suite('Performance Gates', () => {
 
     test('No active timers after LiveFeedProvider.dispose()', () => {
         const store = new ObservationStore(100);
-        const provider = new LiveFeedProvider(store);
+        const provider = new LiveFeedProvider(store, new StateManager());
 
         provider.dispose();
 

@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { ObservationStore } from '../../stores/observation-store';
+import { StateManager } from '../../stores/state-manager';
 import { ConfigManager } from '../../stores/config-manager';
 import { LiveFeedProvider } from '../../ui/sidebar/live-feed-provider';
 import { PersistentObservation } from '../../types/observation';
@@ -336,7 +337,7 @@ suite('Scale: LiveFeedProvider', () => {
             );
         }
 
-        const provider = new LiveFeedProvider(store);
+        const provider = new LiveFeedProvider(store, new StateManager());
         provider.setViewMode('all');
 
         const start = performance.now();
@@ -364,7 +365,7 @@ suite('Scale: LiveFeedProvider', () => {
             );
         }
 
-        const provider = new LiveFeedProvider(store);
+        const provider = new LiveFeedProvider(store, new StateManager());
         provider.setViewMode('all');
 
         const start = performance.now();
@@ -392,7 +393,7 @@ suite('Scale: LiveFeedProvider', () => {
             );
         }
 
-        const provider = new LiveFeedProvider(store);
+        const provider = new LiveFeedProvider(store, new StateManager());
         provider.setViewMode('all');
 
         // Get root items

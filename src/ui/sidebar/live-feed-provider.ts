@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { ObservationStore } from '../../stores/observation-store.js';
+import { StateManager } from '../../stores/state-manager.js';
 import { PersistentObservation } from '../../types/observation.js';
 import { ObservationTreeItem, ObservationDetailItem } from './observation-tree-item.js';
 import { Debouncer } from '../../utils/debouncer.js';
@@ -78,13 +79,16 @@ export class LiveFeedProvider implements vscode.TreeDataProvider<FeedItem>, vsco
      */
     private loadingHistory: Set<string> = new Set();
 
-    /** Cache for shortened session IDs to avoid repeated .slice(0, 8) allocations. */
-    private shortIdCache = new Map<string, string>();
+    /** Cache for session display labels (title + short ID or just short ID). */
+    private sessionLabelCache = new Map<string, string>();
 
     /** Debouncer to coalesce rapid tree refresh calls. */
     private readonly refreshDebouncer: Debouncer;
 
-    constructor(private readonly store: ObservationStore) {
+    constructor(
+        private readonly store: ObservationStore,
+        private readonly stateManager: StateManager,
+    ) {
         this.refreshDebouncer = new Debouncer(() => {
             this._onDidChangeTreeData.fire();
         }, 250);
@@ -93,6 +97,14 @@ export class LiveFeedProvider implements vscode.TreeDataProvider<FeedItem>, vsco
         // Auto-refresh when new observations arrive
         this.disposables.push(
             store.onObservationReceived(() => this.refresh()),
+        );
+
+        // Invalidate session label cache when sessions change (titles may be resolved)
+        this.disposables.push(
+            stateManager.onSessionsChanged(() => {
+                this.sessionLabelCache.clear();
+                this.refresh();
+            }),
         );
     }
 
@@ -206,9 +218,10 @@ export class LiveFeedProvider implements vscode.TreeDataProvider<FeedItem>, vsco
         // In-memory observations, newest first (single reverse iteration instead of slice+reverse)
         for (let i = observations.length - 1; i >= 0; i--) {
             const obs = observations[i];
-            const item = new ObservationTreeItem(obs);
+            const sessionLabel = this.getSessionLabel(obs.session_id);
+            const item = new ObservationTreeItem(obs, sessionLabel);
             if (showSessionLabel) {
-                item.description = `${item.description ?? ''}  \u27E8${this.getShortId(obs.session_id)}\u27E9`;
+                item.description = `${item.description ?? ''}  \u27E8${sessionLabel}\u27E9`;
             }
             items.push(item);
         }
@@ -217,9 +230,10 @@ export class LiveFeedProvider implements vscode.TreeDataProvider<FeedItem>, vsco
         if (this.sessionFilter) {
             const historical = this.historicalObservations.get(this.sessionFilter) ?? [];
             for (const obs of historical) {
-                const item = new ObservationTreeItem(obs);
+                const sessionLabel = this.getSessionLabel(obs.session_id);
+                const item = new ObservationTreeItem(obs, sessionLabel);
                 if (showSessionLabel) {
-                    item.description = `${item.description ?? ''}  \u27E8${this.getShortId(obs.session_id)}\u27E9`;
+                    item.description = `${item.description ?? ''}  \u27E8${sessionLabel}\u27E9`;
                 }
                 items.push(item);
             }
@@ -256,13 +270,19 @@ export class LiveFeedProvider implements vscode.TreeDataProvider<FeedItem>, vsco
         return items;
     }
 
-    private getShortId(sessionId: string): string {
-        let short = this.shortIdCache.get(sessionId);
-        if (!short) {
-            short = sessionId.slice(0, 8);
-            this.shortIdCache.set(sessionId, short);
+    /**
+     * Returns a human-friendly session label: "Title (shortId)" if a title
+     * is available from StateManager, otherwise just the short ID (first 8 chars).
+     */
+    private getSessionLabel(sessionId: string): string {
+        let label = this.sessionLabelCache.get(sessionId);
+        if (!label) {
+            const shortId = sessionId.slice(0, 8);
+            const session = this.stateManager.getSession(sessionId);
+            label = session?.title ? `${session.title} (${shortId})` : shortId;
+            this.sessionLabelCache.set(sessionId, label);
         }
-        return short;
+        return label;
     }
 
     private getObservationDetails(parent: ObservationTreeItem): ObservationDetailItem[] {
@@ -276,7 +296,7 @@ export class LiveFeedProvider implements vscode.TreeDataProvider<FeedItem>, vsco
         items.push(new ObservationDetailItem('Tier', obs.tier));
         items.push(new ObservationDetailItem('Duration', `${obs.duration_ms}ms`));
         items.push(new ObservationDetailItem('Turn', `${obs.turn_number}`));
-        items.push(new ObservationDetailItem('Session', obs.session_id));
+        items.push(new ObservationDetailItem('Session', this.getSessionLabel(obs.session_id)));
 
         return items;
     }
@@ -323,6 +343,6 @@ export class LiveFeedProvider implements vscode.TreeDataProvider<FeedItem>, vsco
         this.historicalObservations.clear();
         this.historyExhausted.clear();
         this.loadingHistory.clear();
-        this.shortIdCache.clear();
+        this.sessionLabelCache.clear();
     }
 }
