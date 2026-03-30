@@ -243,7 +243,15 @@ export class ObservationStore implements vscode.Disposable {
 
         // Evict oldest if over the limit for this session
         if (sessionObs.length > this.maxObservations) {
-            sessionObs.splice(0, sessionObs.length - this.maxObservations);
+            const overflow = sessionObs.length - this.maxObservations;
+            const evicted = sessionObs.splice(0, overflow);
+            for (const evictedObs of evicted) {
+                const evictedSev = evictedObs.severity as 'info' | 'warning' | 'critical';
+                if (evictedSev in tally) {
+                    const current = tally[evictedSev];
+                    if (current > 0) { tally[evictedSev] = current - 1; }
+                }
+            }
         }
     }
 

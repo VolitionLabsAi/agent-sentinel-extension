@@ -332,4 +332,139 @@ suite('ObservationStore', () => {
         const results = store.getObservations({ sessionId: 'nonexistent' });
         assert.strictEqual(results.length, 0);
     });
+
+    // --- Severity tally tests ---
+
+    test('getHighestSeverity returns none for empty store', () => {
+        assert.strictEqual(store.getHighestSeverity(), 'none');
+    });
+
+    test('getSeverityCounts returns all zeros for empty store', () => {
+        const counts = store.getSeverityCounts();
+        assert.deepStrictEqual(counts, { info: 0, warning: 0, critical: 0 });
+    });
+
+    test('getHighestSeverity returns info when only info observations', async () => {
+        const filePath = path.join(tmpDir, 'obs.jsonl');
+        writeObservations(filePath, [
+            makeObservation({ session_id: 'sess-1', severity: 'info' }),
+            makeObservation({ session_id: 'sess-1', severity: 'info' }),
+        ]);
+
+        store.addFolder('folder1', filePath);
+        await store.load();
+
+        assert.strictEqual(store.getHighestSeverity(), 'info');
+    });
+
+    test('getHighestSeverity returns warning when warning is highest', async () => {
+        const filePath = path.join(tmpDir, 'obs.jsonl');
+        writeObservations(filePath, [
+            makeObservation({ session_id: 'sess-1', severity: 'info' }),
+            makeObservation({ session_id: 'sess-1', severity: 'warning' }),
+        ]);
+
+        store.addFolder('folder1', filePath);
+        await store.load();
+
+        assert.strictEqual(store.getHighestSeverity(), 'warning');
+    });
+
+    test('getHighestSeverity returns critical when critical is present', async () => {
+        const filePath = path.join(tmpDir, 'obs.jsonl');
+        writeObservations(filePath, [
+            makeObservation({ session_id: 'sess-1', severity: 'critical' }),
+        ]);
+
+        store.addFolder('folder1', filePath);
+        await store.load();
+
+        assert.strictEqual(store.getHighestSeverity(), 'critical');
+    });
+
+    test('getHighestSeverity returns highest among mixed severities', async () => {
+        const filePath = path.join(tmpDir, 'obs.jsonl');
+        writeObservations(filePath, [
+            makeObservation({ session_id: 'sess-1', severity: 'info' }),
+            makeObservation({ session_id: 'sess-1', severity: 'warning' }),
+            makeObservation({ session_id: 'sess-1', severity: 'critical' }),
+            makeObservation({ session_id: 'sess-1', severity: 'info' }),
+        ]);
+
+        store.addFolder('folder1', filePath);
+        await store.load();
+
+        assert.strictEqual(store.getHighestSeverity(), 'critical');
+        const counts = store.getSeverityCounts();
+        assert.strictEqual(counts.info, 2);
+        assert.strictEqual(counts.warning, 1);
+        assert.strictEqual(counts.critical, 1);
+    });
+
+    test('getHighestSeverity with session filter only considers that session', async () => {
+        const filePath = path.join(tmpDir, 'obs.jsonl');
+        writeObservations(filePath, [
+            makeObservation({ session_id: 'sess-1', severity: 'info' }),
+            makeObservation({ session_id: 'sess-2', severity: 'critical' }),
+        ]);
+
+        store.addFolder('folder1', filePath);
+        await store.load();
+
+        assert.strictEqual(store.getHighestSeverity('sess-1'), 'info');
+        assert.strictEqual(store.getHighestSeverity('sess-2'), 'critical');
+        assert.strictEqual(store.getHighestSeverity(), 'critical');
+
+        const counts1 = store.getSeverityCounts('sess-1');
+        assert.deepStrictEqual(counts1, { info: 1, warning: 0, critical: 0 });
+
+        const counts2 = store.getSeverityCounts('sess-2');
+        assert.deepStrictEqual(counts2, { info: 0, warning: 0, critical: 1 });
+    });
+
+    test('getHighestSeverity returns none after clearSession', async () => {
+        const filePath = path.join(tmpDir, 'obs.jsonl');
+        writeObservations(filePath, [
+            makeObservation({ session_id: 'sess-1', severity: 'critical' }),
+        ]);
+
+        store.addFolder('folder1', filePath);
+        await store.load();
+
+        assert.strictEqual(store.getHighestSeverity('sess-1'), 'critical');
+
+        store.clearSession('sess-1');
+        assert.strictEqual(store.getHighestSeverity('sess-1'), 'none');
+        assert.deepStrictEqual(store.getSeverityCounts('sess-1'), { info: 0, warning: 0, critical: 0 });
+    });
+
+    test('severity counts are accurate after eviction', async () => {
+        const filePath = path.join(tmpDir, 'obs.jsonl');
+        const smallStore = new ObservationStore(3);
+
+        // Write 5 observations: 2 warning (oldest, will be evicted), then 3 info
+        writeObservations(filePath, [
+            makeObservation({ session_id: 'sess-1', severity: 'warning', eval_id: 'W-0' }),
+            makeObservation({ session_id: 'sess-1', severity: 'warning', eval_id: 'W-1' }),
+            makeObservation({ session_id: 'sess-1', severity: 'info', eval_id: 'I-0' }),
+            makeObservation({ session_id: 'sess-1', severity: 'info', eval_id: 'I-1' }),
+            makeObservation({ session_id: 'sess-1', severity: 'info', eval_id: 'I-2' }),
+        ]);
+
+        smallStore.addFolder('folder1', filePath);
+        await smallStore.load();
+
+        // Only 3 observations should remain (the last 3 info ones)
+        const results = smallStore.getObservations({ sessionId: 'sess-1' });
+        assert.strictEqual(results.length, 3);
+
+        // Severity tally should reflect only in-memory observations (no warnings)
+        const counts = smallStore.getSeverityCounts('sess-1');
+        assert.strictEqual(counts.warning, 0, 'evicted warnings should not be counted');
+        assert.strictEqual(counts.info, 3, 'remaining info observations should be counted');
+        assert.strictEqual(store.getHighestSeverity('sess-1'), 'none');
+        assert.strictEqual(smallStore.getHighestSeverity('sess-1'), 'info');
+
+        smallStore.dispose();
+    });
 });
