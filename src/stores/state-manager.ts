@@ -204,6 +204,67 @@ export class StateManager implements vscode.Disposable {
     }
 
     /**
+     * Write a session title to the in-memory session state and persist it to
+     * sentinel-state.json so the Go core's backfill data source is used.
+     *
+     * This is fire-and-forget for the disk write — callers should not await
+     * the returned promise unless they need write confirmation.
+     */
+    async setSessionTitle(sessionId: string, title: string): Promise<void> {
+        // Update in-memory state
+        const session = this.sessions.get(sessionId);
+        if (session) {
+            session.title = title;
+        }
+
+        // Update per-folder map and write to disk (best-effort)
+        for (const [folderKey, folderMap] of this.folderSessions) {
+            const folderSession = folderMap.get(sessionId);
+            if (!folderSession) { continue; }
+
+            folderSession.title = title;
+
+            const filePath = this.folderPaths.get(folderKey);
+            if (filePath) {
+                await this.writeSessionTitleToFile(filePath, sessionId, title);
+            }
+            // Only update the first folder that owns this session
+            break;
+        }
+    }
+
+    /**
+     * Write a title for a specific session into sentinel-state.json.
+     * Handles the object format (current format) only; no-ops on array format.
+     */
+    private async writeSessionTitleToFile(
+        filePath: string,
+        sessionId: string,
+        title: string,
+    ): Promise<void> {
+        try {
+            const raw = await fs.readFile(filePath, 'utf-8');
+            const state = JSON.parse(raw) as SentinelState;
+
+            if (
+                state.sessions &&
+                typeof state.sessions === 'object' &&
+                !Array.isArray(state.sessions)
+            ) {
+                const sessionEntry = (state.sessions as Record<string, Record<string, unknown>>)[sessionId];
+                if (sessionEntry) {
+                    sessionEntry['title'] = title;
+                    const json = JSON.stringify(state, null, 2) + '\n';
+                    await fs.writeFile(filePath, json, 'utf-8');
+                }
+            }
+        } catch (err) {
+            // Non-fatal: the file may not exist yet or may be locked
+            console.warn(`[StateManager] Could not write session title to ${filePath}: ${err}`);
+        }
+    }
+
+    /**
      * Returns all session states.
      */
     getAllSessions(): SessionState[] {

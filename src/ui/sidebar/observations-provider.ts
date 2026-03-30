@@ -5,6 +5,7 @@ import { ConfigManager } from '../../stores/config-manager.js';
 import { PersistentObservation } from '../../types/observation.js';
 import { ObservationTreeItem, ObservationDetailItem, SessionGroupTreeItem } from './observation-tree-item.js';
 import { Debouncer } from '../../utils/debouncer.js';
+import { extractTranscriptTitle } from '../../utils/transcript-title.js';
 
 type FeedItem = ObservationTreeItem | ObservationDetailItem | LoadMoreTreeItem | EndOfHistoryTreeItem | SessionGroupTreeItem;
 
@@ -83,6 +84,12 @@ export class ObservationsProvider implements vscode.TreeDataProvider<FeedItem>, 
 
     /** Cache for session display labels (title + short ID or just short ID). */
     private sessionLabelCache = new Map<string, string>();
+
+    /**
+     * Sessions currently undergoing async title resolution from transcript.
+     * Prevents multiple concurrent reads for the same session.
+     */
+    private readonly pendingTitleResolution = new Set<string>();
 
     /** Debouncer to coalesce rapid tree refresh calls. */
     private readonly refreshDebouncer: Debouncer;
@@ -235,11 +242,19 @@ export class ObservationsProvider implements vscode.TreeDataProvider<FeedItem>, 
     }
 
     /**
-     * Flat root: current behavior — observations newest-first.
+     * Flat root: observations newest-first, optionally filtered by the time window.
+     *
+     * The window filter (observation_window_hours) is applied only in 'all' mode.
+     * In 'recent'/'pinned' mode the caller has already set sessionFilter and we
+     * show all observations for that specific session regardless of age.
      */
     private getFlatRoot(): FeedItem[] {
+        const windowFilter = this.buildWindowFilter();
+        const filter = this.sessionFilter
+            ? { sessionId: this.sessionFilter, ...windowFilter }
+            : windowFilter;
         const observations = this.store.getObservations(
-            this.sessionFilter ? { sessionId: this.sessionFilter } : undefined,
+            (filter && Object.keys(filter).length > 0) ? filter : undefined,
         );
 
         if (observations.length === 0 && !this.hasAnyHistory()) {
@@ -272,10 +287,17 @@ export class ObservationsProvider implements vscode.TreeDataProvider<FeedItem>, 
 
     /**
      * Grouped root: return SessionGroupTreeItem[] — one per session, ordered by most recent observation.
+     *
+     * The window filter (observation_window_hours) is applied only in 'all' mode.
+     * In 'recent'/'pinned' mode show all observations for the specific session.
      */
     private getGroupedRoot(): FeedItem[] {
+        const windowFilter = this.buildWindowFilter();
+        const filter = this.sessionFilter
+            ? { sessionId: this.sessionFilter, ...windowFilter }
+            : windowFilter;
         const observations = this.store.getObservations(
-            this.sessionFilter ? { sessionId: this.sessionFilter } : undefined,
+            (filter && Object.keys(filter).length > 0) ? filter : undefined,
         );
 
         if (observations.length === 0 && !this.hasAnyHistory()) {
@@ -422,16 +444,81 @@ export class ObservationsProvider implements vscode.TreeDataProvider<FeedItem>, 
     /**
      * Returns a human-friendly session label: "Title (shortId)" if a title
      * is available from StateManager, otherwise just the short ID (first 8 chars).
+     *
+     * When no title exists in the state manager, a transcript-based title extraction
+     * is scheduled asynchronously (fire-and-forget). The resolved title is written
+     * back to the state manager so subsequent renders use it directly. If extraction
+     * fails, the bare short ID is cached to avoid repeated filesystem reads.
      */
     private getSessionLabel(sessionId: string): string {
-        let label = this.sessionLabelCache.get(sessionId);
-        if (!label) {
-            const shortId = sessionId.slice(0, 8);
-            const session = this.stateManager.getSession(sessionId);
-            label = session?.title ? `${session.title} (${shortId})` : shortId;
-            this.sessionLabelCache.set(sessionId, label);
+        const cached = this.sessionLabelCache.get(sessionId);
+        if (cached !== undefined) {
+            // Return the cached label (may be bare short ID if extraction already failed).
+            return cached;
         }
-        return label;
+
+        const shortId = sessionId.slice(0, 8);
+        const session = this.stateManager.getSession(sessionId);
+
+        if (session?.title) {
+            const label = `${session.title} (${shortId})`;
+            this.sessionLabelCache.set(sessionId, label);
+            return label;
+        }
+
+        // No title yet — schedule async extraction from transcript if not already in flight.
+        if (!this.pendingTitleResolution.has(sessionId) && session?.transcript_path) {
+            this.pendingTitleResolution.add(sessionId);
+            const transcriptPath = session.transcript_path;
+            extractTranscriptTitle(transcriptPath).then(async (title) => {
+                if (title) {
+                    // Write back to state manager (updates in-memory + sentinel-state.json).
+                    await this.stateManager.setSessionTitle(sessionId, title);
+                    // Invalidate cache entry so the next render picks up the new title.
+                    this.sessionLabelCache.delete(sessionId);
+                } else {
+                    // Cache the bare short ID to skip future extraction attempts until
+                    // the next session-change event clears the cache.
+                    this.sessionLabelCache.set(sessionId, shortId);
+                }
+            }).catch(() => {
+                // Extraction failed — cache bare ID to avoid repeated retries.
+                this.sessionLabelCache.set(sessionId, shortId);
+            }).finally(() => {
+                this.pendingTitleResolution.delete(sessionId);
+                // Re-render the tree so the resolved (or confirmed-missing) label is shown.
+                this.refresh();
+            });
+        }
+
+        // Return bare short ID immediately; tree will refresh when title resolves.
+        return shortId;
+    }
+
+    /**
+     * Build a time-window filter for use in 'all' view mode.
+     *
+     * In 'all' mode, apply `observation_window_hours` to restrict observations to
+     * those within the configured window. In 'recent'/'pinned' mode (where
+     * sessionFilter is set), show all observations for the specific session.
+     *
+     * Returns an empty object ({}) when no window filter should be applied.
+     */
+    private buildWindowFilter(): { since?: string } {
+        // Only apply the window filter in 'all' mode (no session filter active).
+        if (this.viewMode !== 'all' || this.sessionFilter) {
+            return {};
+        }
+        if (!this.configManager) {
+            return {};
+        }
+        const windowMs = this.configManager.getObservationWindowMs();
+        if (windowMs === 0) {
+            // 0 means "all time" — no filter.
+            return {};
+        }
+        const since = new Date(Date.now() - windowMs).toISOString();
+        return { since };
     }
 
     private getObservationDetails(parent: ObservationTreeItem): ObservationDetailItem[] {
@@ -493,5 +580,6 @@ export class ObservationsProvider implements vscode.TreeDataProvider<FeedItem>, 
         this.historyExhausted.clear();
         this.loadingHistory.clear();
         this.sessionLabelCache.clear();
+        this.pendingTitleResolution.clear();
     }
 }
