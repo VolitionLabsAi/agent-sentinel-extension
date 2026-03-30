@@ -2,13 +2,19 @@ import * as vscode from 'vscode';
 import { EvalDomain, EvalRule, LocalEval } from '../../types/eval-rule.js';
 
 /**
- * Extract a short title from the first sentence of rule text.
- * Takes up to the first period-followed-by-whitespace, or the first newline,
- * whichever comes first. Falls back to a truncated version of the full text.
+ * Extract a short title from rule text.
+ * Eval rules typically follow "Title: description..." pattern.
+ * Extracts just the title portion (before the first colon-space).
+ * Falls back to the first sentence or a truncated version.
  */
 function extractTitle(ruleText: string): string {
     const firstLine = ruleText.split('\n')[0].trim();
-    // Match up to first ". " or ".\n" or period at end of line
+    // Eval rules follow "Title: description" pattern — extract just the title
+    const colonPos = firstLine.indexOf(': ');
+    if (colonPos > 0 && colonPos < 60) {
+        return firstLine.substring(0, colonPos);
+    }
+    // Fallback: first sentence
     const sentenceEnd = firstLine.match(/^(.+?\.)\s/);
     if (sentenceEnd) {
         const title = sentenceEnd[1];
