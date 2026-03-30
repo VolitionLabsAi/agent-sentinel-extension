@@ -81,6 +81,8 @@ export interface HarnessConfig {
  */
 export interface SentinelConfigFile {
     version: string;
+    /** Number of hours to look back when filtering observations in "All" mode. Defaults to 24. */
+    observation_window_hours?: number;
     defaults: {
         execution: string;
         model: string;

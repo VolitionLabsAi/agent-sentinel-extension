@@ -357,6 +357,21 @@ export class ConfigManager implements vscode.Disposable {
     }
 
     /**
+     * Returns the observation recency window in milliseconds.
+     * Reads `observation_window_hours` from the first folder's config, defaulting to 24 hours.
+     */
+    getObservationWindowMs(): number {
+        const DEFAULT_HOURS = 24;
+        for (const folder of this.folders.values()) {
+            if (folder.config?.observation_window_hours !== undefined) {
+                const hours = Math.max(1, folder.config.observation_window_hours);
+                return hours * 60 * 60 * 1000;
+            }
+        }
+        return DEFAULT_HOURS * 60 * 60 * 1000;
+    }
+
+    /**
      * Returns the base defaults from the first workspace folder's config.
      * Used as tier-3 (lowest priority) in harness config resolution.
      */

@@ -688,9 +688,9 @@ export function activate(context: vscode.ExtensionContext) {
     function updateStatusBarSeverity(): void {
         const mode = liveFeedProvider.getViewMode();
         const sessionFilter = mode === 'all' ? undefined : liveFeedProvider.getSessionFilter();
-        // In "all" mode, apply a 2-hour recency window so stale observations
-        // don't keep the status bar permanently colored.
-        const maxAgeMs = mode === 'all' ? 2 * 60 * 60 * 1000 : undefined;
+        // In "all" mode, apply a configurable recency window so stale observations
+        // don't keep the status bar permanently colored (default 24 hours).
+        const maxAgeMs = mode === 'all' ? configManager.getObservationWindowMs() : undefined;
         const severity = observationStore.getHighestSeverity(sessionFilter ?? undefined, maxAgeMs);
         const counts = observationStore.getSeverityCounts(sessionFilter ?? undefined, maxAgeMs);
         statusBar.setHighestSeverity(severity);
@@ -740,7 +740,7 @@ export function activate(context: vscode.ExtensionContext) {
         }
 
         // Align Session Health recency window with the status bar
-        const maxAgeMs = mode === 'all' ? 2 * 60 * 60 * 1000 : undefined;
+        const maxAgeMs = mode === 'all' ? configManager.getObservationWindowMs() : undefined;
         sessionHealthProvider.setMaxAge(maxAgeMs);
 
         // Update the header panel with detailed filter info
@@ -929,6 +929,8 @@ export function activate(context: vscode.ExtensionContext) {
         workspaceManager.onConfigChanged(async (uri) => {
             await configManager.update(uri);
             await healthAssessor.runCheckForAllFolders();
+            // Re-apply observation window in case observation_window_hours changed
+            updateSessionContext();
         }),
     );
 
