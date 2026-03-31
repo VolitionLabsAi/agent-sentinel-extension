@@ -110,7 +110,7 @@ Sentinel degrades gracefully when features are not available for a given harness
 |---|---|
 | No PreToolUse hook | Operates in **observation-only mode**. Tool calls are logged after execution via AfterToolUse/AfterTool. CRITICAL and WARNING observations are still generated but cannot prevent the action. |
 | No tab detection | Session correlator skips tab-based correlation for that harness. Session filtering still works via JSONL transcript matching. |
-| No session opening | "Open Sentinel Chat" shows terminal instructions instead of opening a VS Code tab. Error messages include the correct CLI command for manual session access. |
+| No session opening | The `sentinel.openFullConversation` command (command palette only; sidebar button removed) shows terminal instructions instead of opening a VS Code tab. Error messages include the correct CLI command for manual session access. |
 | No transcript access | Historical browsing is limited. Live observations via hook stdout/stderr continue to work. |
 | Hooks experimental/preview | Sentinel functions normally but warns on first activation that the hook system may change between harness versions. |
 

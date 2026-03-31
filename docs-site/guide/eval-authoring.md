@@ -2,7 +2,7 @@
 
 Eval rules are natural-language instructions that tell the sentinel's LLM evaluator what to watch for. This guide covers how to write, test, and share them.
 
-## How Eval Rules Work
+## How Evals Work
 
 When the sentinel evaluates an agent's conversation turn, it reads each enabled eval rule and uses the rule text as instructions. The key implications:
 

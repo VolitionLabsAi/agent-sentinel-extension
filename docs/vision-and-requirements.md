@@ -90,20 +90,20 @@ A persistent heartbeat in the VS Code status bar:
 
 The sentinel icon in the activity bar opens three dedicated views:
 
-#### 2.2.1 Live Feed
+#### 2.2.1 Observations
 
 Observations streaming in real-time, severity-colored, with eval ID, one-liner summary, and expandable analysis. Like a security operations center rendered as a tree view.
 
-#### 2.2.2 Session Health
+#### 2.2.2 Insights
 
 Current session vital signs displayed in a webview with charts:
 
-- Evaluation count, failure rate, dynamic rules created, timing trends.
+- Evaluation count, Corrections, dynamic rules created, timing trends.
 - Sparklines for evaluation latency.
 - Severity distribution donut chart.
 - Observation timeline mapped to conversation turns.
 
-#### 2.2.3 Eval Rules
+#### 2.2.3 Evals
 
 Every active rule across all domains (`GEN`, `SEC`, `LOCAL`):
 
@@ -127,7 +127,7 @@ These must feel like the output of a serious security tool — not a tooltip.
 
 Users can open the sentinel's sidechain session as an editor tab to talk directly to their sentinel. Sentinel sessions are hidden from Claude Code's session picker by design; the extension provides the doorway.
 
-**Mechanism**: "Open Sentinel Chat" invokes `claude-vscode.editor.open` with the sentinel's session ID read from `sentinel-state.json`.
+**Mechanism**: "Open Full Conversation" (`sentinel.openFullConversation` in the command palette; removed from sidebar) invokes `claude-vscode.editor.open` with the sentinel's session ID read from `sentinel-state.json`.
 
 Users can steer the sentinel mid-session:
 
@@ -207,7 +207,7 @@ A working prototype was built and tested. Key findings:
 
 ### 3.3 Clickable Observation Navigation
 
-Every observation in the Live Feed and observation cards is clickable. Clicking navigates to the Claude Code session where the observation was raised, using `claude-vscode.editor.open(sessionId)`. This is proven functional from prototype testing.
+Every observation in the Observations sidebar and observation cards is clickable. Clicking navigates to the Claude Code session where the observation was raised, using `claude-vscode.editor.open(sessionId)`. This is proven functional from prototype testing.
 
 ---
 
@@ -415,7 +415,7 @@ Each IDE client is a thin presentation layer. All monitoring logic, evaluation, 
 
 Everything an individual developer needs:
 
-- Real-time monitoring and observation display (full status bar, activity panel, live feed).
+- Real-time monitoring and observation display (full status bar, activity panel, observations).
 - Built-in eval rules across all domains (`GEN` + `SEC`).
 - Session-scoped dynamic evals (sentinel-created `LOCAL` rules).
 - Tier 0 + Tier 1 + Tier 2 evaluation — **the eval engine is fully open source**.
@@ -539,7 +539,7 @@ Detailed phasing, timelines, and effort estimates are maintained in a separate d
 | Phase | Name | Summary |
 |-------|------|---------|
 | 0 | Sentinel Foundation | CLI changes required before the extension can be built |
-| 1 | Extension Scaffold + Core | The "install and say wow" moment — status bar, live feed, basic observation display |
+| 1 | Extension Scaffold + Core | The "install and say wow" moment — status bar, observations, basic observation display |
 | 2 | Rich Dashboard + Eval Management | Session health webview, eval rules panel, charts |
 | 3 | Sentinel Interaction | Conversable sentinel, rapid eval creation, dynamic eval promotion |
 | 4 | Cross-Harness Support | Codex, Copilot, Gemini CLI adapters |
@@ -585,7 +585,7 @@ Issues identified during ideation that require further investigation or architec
 | OQ-8 | **How to handle observation display when the extension is installed but sentinel is not running?** | The extension should degrade gracefully — show historical observations, offer to start sentinel, or explain prerequisites. | Design during Phase 1 as part of the health assessment system. |
 | OQ-9 | **Extension activation performance budget — what are the memory/CPU thresholds for 10+ sessions?** | With 10+ concurrent sessions, each with its own file watcher and observation history, resource consumption could become significant. Need concrete thresholds and a measurement/enforcement strategy. | Benchmark during Phase 1 with synthetic multi-session loads. Establish CI-enforced budgets (see [Section 13](#13-performance-budget)). |
 | OQ-10 | **Telemetry policy for the OSS extension — anonymous usage data, opt-in vs opt-out?** | The current policy is no telemetry. If usage analytics are ever desired (to guide feature prioritization), the opt-in vs opt-out decision has significant trust implications for an OSS security tool. | Defer until post-launch. If introduced, must be opt-in with full transparency (see [Section 14](#14-telemetry-and-privacy)). |
-| OQ-11 | **How to handle very large observation histories?** | Long-running sessions can produce thousands of observations. Rendering all of them in the Live Feed or observation cards will degrade performance and UX. | Investigate virtualized/windowed list rendering, pagination with "load more" semantics, and automatic archival of older observations to disk with on-demand retrieval. Design during Phase 2. |
+| OQ-11 | **How to handle very large observation histories?** | Long-running sessions can produce thousands of observations. Rendering all of them in the Observations sidebar or observation cards will degrade performance and UX. | Investigate virtualized/windowed list rendering, pagination with "load more" semantics, and automatic archival of older observations to disk with on-demand retrieval. Design during Phase 2. |
 
 ---
 

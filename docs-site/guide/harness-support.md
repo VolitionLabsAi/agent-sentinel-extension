@@ -22,7 +22,7 @@ When a capability is missing, sentinel degrades gracefully:
 |---|---|
 | No PreToolUse hook | **Observation-only mode.** Tool calls are logged after execution. Observations are still generated but cannot prevent actions. |
 | No tab detection | Session correlator skips tab-based correlation. Session filtering works via transcript matching. |
-| No session opening | "Open Sentinel Chat" shows terminal instructions instead of opening a tab. |
+| No session opening | The `sentinel.openFullConversation` command (command palette only; sidebar button removed) shows terminal instructions instead of opening a tab. |
 | No transcript access | Historical browsing limited. Live observations via hook stdout/stderr continue. |
 | Hooks experimental | Functions normally but warns that the hook system may change between versions. |
 

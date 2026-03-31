@@ -45,7 +45,7 @@ evals:
 | `examples.positive` | string[] | Examples of behavior that SHOULD trigger this eval. |
 | `examples.negative` | string[] | Examples of behavior that should NOT trigger this eval. |
 
-## How Eval Rules Work
+## How Evals Work
 
 Eval rules are **prompts to the sentinel's LLM evaluator**. When the sentinel evaluates an agent's conversation turn, it reads each enabled eval rule and uses the rule text as instructions for what to look for.
 
@@ -128,7 +128,7 @@ Less useful: "Detect when the agent is thinking about deleting files" (the evalu
 
 ### Export a Single Eval
 
-1. Open the Eval Rules sidebar in VS Code.
+1. Open the Evals sidebar in VS Code.
 2. Right-click the eval you want to share.
 3. Select **Sentinel: Export Eval** and choose a save location.
 

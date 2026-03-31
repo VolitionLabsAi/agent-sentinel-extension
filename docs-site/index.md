@@ -16,11 +16,11 @@ hero:
 features:
   - title: Inline Prevention (Tier 0)
     details: Block dangerous operations before they execute. Destructive file deletions, force pushes, credential exfiltration — caught and stopped at the source via pattern matching in under 10ms.
-  - title: Live Observation Feed
+  - title: Observations
     details: A real-time sidebar feed of every action your AI agent takes. File writes, shell commands, tool invocations — all categorized by severity and streamed as they happen.
   - title: Multi-Harness Support
     details: Works with Claude Code, Gemini CLI, GitHub Copilot, and Codex CLI. One extension monitors all your AI coding assistants with harness-specific adapters.
-  - title: Custom Eval Rules
+  - title: Evals
     details: Write natural-language eval rules in YAML. The sentinel's LLM evaluator applies your rules to agent behavior — no regex required. Share rules as eval packs.
 ---
 

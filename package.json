@@ -294,7 +294,7 @@
             "title": "Explore Observations",
             "description": "Open the Sentinel sidebar to browse observations in real time.\n\n[Open Observations](command:sentinel.openObservations)",
             "media": {
-              "image": "media/walkthrough/explore-live-feed.png",
+              "image": "media/walkthrough/explore-observations.png",
               "altText": "Observations sidebar"
             },
             "completionEvents": [

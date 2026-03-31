@@ -360,7 +360,7 @@ Tab focus changed
 
 When correlation fails:
 - The status bar shows aggregate health across all sessions (not per-session)
-- The Live Feed shows all observations with session labels
+- The Observations view shows all observations with session labels
 - The user can manually pin a session (Vision §3.1 "Pinned Session" mode)
 - A subtle "Session: Unknown" indicator appears, not an error
 

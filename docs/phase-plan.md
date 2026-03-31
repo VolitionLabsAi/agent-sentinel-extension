@@ -52,7 +52,7 @@ Phase 1: Extension Scaffold + Core Experience (TypeScript)
   │  P1-03 Status bar heartbeat
   │  P1-04 File watcher system
   │  P1-05 Observation store
-  │  P1-06 Activity bar + Live Feed
+  │  P1-06 Activity bar + Observations
   │  P1-07 Session correlation
   │  P1-08 Multi-session view modes
   │  P1-09 Guided setup walkthrough
@@ -370,7 +370,7 @@ Phase 0 is complete when ALL of the following are true:
 - Tooltip shows expanded info: health state, active session count, last observation severity
 - Respects `sentinel.statusBar.enabled` setting
 - Works correctly when no sentinel config exists (shows Grey/Not Initialized)
-- **Sparkline deferred**: The status bar does NOT include a sparkline in Phase 1. Sparkline rendering is deferred to P2-1 (Session Health Webview), where the chart rendering infrastructure is built. Adding sparklines to the status bar before that infrastructure exists would mean building one-off chart code that is immediately replaced. P2-1 can retroactively add a sparkline to the status bar tooltip using the shared chart module.
+- **Sparkline deferred**: The status bar does NOT include a sparkline in Phase 1. Sparkline rendering is deferred to P2-1 (Insights Webview), where the chart rendering infrastructure is built. Adding sparklines to the status bar before that infrastructure exists would mean building one-off chart code that is immediately replaced. P2-1 can retroactively add a sparkline to the status bar tooltip using the shared chart module.
 
 **Key Files**:
 - `src/ui/status-bar.ts` (NEW) — `StatusBarManager` class
@@ -431,13 +431,13 @@ Phase 0 is complete when ALL of the following are true:
 
 ---
 
-### P1-06: Activity Bar Panel with Live Feed View
+### P1-06: Activity Bar Panel with Observations View
 
-**Description**: Register a sentinel icon in the VS Code activity bar. Implement the Live Feed tree view that streams observations in real-time, severity-colored, with eval ID, one-liner summary, and expandable analysis.
+**Description**: Register a sentinel icon in the VS Code activity bar. Implement the Observations tree view that streams observations in real-time, severity-colored, with eval ID, one-liner summary, and expandable analysis.
 
 **Acceptance Criteria**:
 - Activity bar icon registered via `contributes.viewsContainers.activitybar` in `package.json`
-- Live Feed view registered as a `TreeDataProvider`
+- Observations view registered as a `TreeDataProvider`
 - Tree items display: severity icon (color-coded), eval ID, one-liner, timestamp
 - Expanding a tree item reveals: full analysis text, sentinel name, tier, duration
 - New observations appear at the top of the feed automatically (via `onObservationReceived` event → `refresh()`)
@@ -485,8 +485,8 @@ Phase 0 is complete when ALL of the following are true:
 **Description**: Implement the three view modes from Vision §3.1: All Sessions, Active Session (auto-filtered to focused tab), and Pinned Session. Add mode switching UI in the sidebar.
 
 **Acceptance Criteria**:
-- **All Sessions**: Live Feed shows all observations across all sessions, with session ID label on each item
-- **Active Session** (default): Live Feed auto-filters to whichever Claude Code tab is focused, using `SessionCorrelator`
+- **All Sessions**: Observations view shows all observations across all sessions, with session ID label on each item
+- **Active Session** (default): Observations view auto-filters to whichever Claude Code tab is focused, using `SessionCorrelator`
 - **Pinned Session**: User manually pins a session; feed stays filtered regardless of tab focus
 - Mode selector in sidebar header (dropdown or toggle buttons)
 - Mode persisted via `sentinel.viewMode` setting
@@ -499,7 +499,7 @@ Phase 0 is complete when ALL of the following are true:
 - `src/ui/status-bar.ts` — session indicator updates
 - `package.json` — add `sentinel.focusSession` command
 
-**Dependencies**: P1-06 (Live Feed), P1-07 (Session Correlator)
+**Dependencies**: P1-06 (Observations), P1-07 (Session Correlator)
 
 ---
 
@@ -513,7 +513,7 @@ Phase 0 is complete when ALL of the following are true:
   1. "What is Agent Sentinel?" — explanation + link to docs
   2. "Configure your workspace" — checks for `.volition/sentinel/sentinel.config.json` existence
   3. "See your first observation" — checks for observation JSONL file with content
-  4. "Explore the Live Feed" — opens the activity bar panel
+  4. "Explore Observations" — opens the activity bar panel
   5. "Customize your rules" — links to eval authoring docs
 - Each step uses `onContext:` completion event (e.g., `sentinel.configPresent`, `sentinel.firstObservation`)
 - Extension sets context keys: `setContext('sentinel.configPresent', true)` when config detected
@@ -613,16 +613,16 @@ Phase 0 is complete when ALL of the following are true:
 - `README.md`
 - `media/screenshots/` — marketplace screenshots
 
-**Dependencies**: P1-06 (Live Feed must exist to screenshot), P1-03 (status bar must exist to screenshot)
+**Dependencies**: P1-06 (Observations must exist to screenshot), P1-03 (status bar must exist to screenshot)
 
 ---
 
 ### P1-14: Clickable Observation Navigation
 
-**Description**: Make every observation in the Live Feed clickable. Clicking navigates to the Claude Code session where the observation was raised, using `claude-vscode.editor.open(sessionId)`. Ref: Vision §3.3.
+**Description**: Make every observation in the Observations view clickable. Clicking navigates to the Claude Code session where the observation was raised, using `claude-vscode.editor.open(sessionId)`. Ref: Vision §3.3.
 
 **Acceptance Criteria**:
-- Clicking an observation tree item in Live Feed opens the corresponding Claude Code session
+- Clicking an observation tree item in Observations opens the corresponding Claude Code session
 - Uses `vscode.commands.executeCommand('claude-vscode.editor.open', sessionId)`
 - Session ID sourced from the observation's `session_id` field
 - Feature-detected at activation: if `claude-vscode.editor.open` command doesn't exist, clicking shows a message instead of failing
@@ -633,7 +633,7 @@ Phase 0 is complete when ALL of the following are true:
 - `src/ui/sidebar/live-feed-provider.ts` — click handler
 - `src/correlation/session-correlator.ts` — update tab cache on navigation
 
-**Dependencies**: P1-06 (Live Feed), P1-07 (SessionCorrelator)
+**Dependencies**: P1-06 (Observations), P1-07 (SessionCorrelator)
 
 ---
 
@@ -643,7 +643,7 @@ Phase 1 is complete when ALL of the following are true:
 
 1. Extension installs from `.vsix` in VS Code, Cursor, and VSCodium
 2. Status bar shows correct health state with color-coding
-3. Live Feed displays real-time observations as they are written to JSONL
+3. Observations view displays real-time observations as they are written to JSONL
 4. Session correlation correctly identifies the focused Claude Code session
 5. Three view modes (All/Active/Pinned) work correctly
 6. Walkthrough completes from start to finish on a clean install
@@ -651,9 +651,9 @@ Phase 1 is complete when ALL of the following are true:
 8. Extension activates in <200ms (measured and enforced in CI)
 9. Memory usage <50MB with 10 simulated sessions (measured and enforced in CI)
 10. Published to VS Code Marketplace and Open VSX
-11. Clicking an observation in the Live Feed navigates to the correct Claude Code session
+11. Clicking an observation in the Observations view navigates to the correct Claude Code session
 12. All interactive UI elements are keyboard-navigable and severity is never communicated by color alone
-13. End-to-end test: sentinel trigger writes observation → extension displays it in Live Feed within 500ms
+13. End-to-end test: sentinel trigger writes observation → extension displays it in Observations view within 500ms
 14. Extension correctly manages separate observation feeds for a multi-root workspace with two workspace folders
 
 **Deliverables**:
@@ -676,13 +676,13 @@ Phase 1 is complete when ALL of the following are true:
 
 ---
 
-### P2-1: Session Health Webview
+### P2-1: Insights Webview
 
-**Description**: Implement the Session Health view in the activity bar panel as a webview with charts: evaluation count, failure rate, timing trends, severity distribution, and observation timeline. Ref: Vision §2.2.2.
+**Description**: Implement the Insights view in the activity bar panel as a webview with charts: evaluation count, Corrections, timing trends, severity distribution, and observation timeline. Ref: Vision §2.2.2.
 
 **Acceptance Criteria**:
 - Webview registered as a view in the activity bar panel
-- Displays: evaluation count, failure rate percentage, dynamic rules created count
+- Displays: evaluation count, Corrections percentage, dynamic rules created count
 - Sparklines for evaluation latency trends (last 20 evaluations)
 - Severity distribution donut chart (CRITICAL/WARNING/INFO counts)
 - Observation timeline mapped to conversation turns
@@ -702,9 +702,9 @@ Phase 1 is complete when ALL of the following are true:
 
 ---
 
-### P2-2: Eval Rules Tree View
+### P2-2: Evals Tree View
 
-**Description**: Implement the Eval Rules view showing every active rule across all domains (GEN, SEC, LOCAL) with enable/disable toggles, hit counts, and inspection. Ref: Vision §2.2.3.
+**Description**: Implement the Evals view showing every active rule across all domains (GEN, SEC, LOCAL) with enable/disable toggles, hit counts, and inspection. Ref: Vision §2.2.3.
 
 **Acceptance Criteria**:
 - Tree view registered in the activity bar panel
@@ -726,21 +726,21 @@ Phase 1 is complete when ALL of the following are true:
 
 ### P2-3: Dynamic Eval Display
 
-**Description**: Detect and celebrate sentinel-created LOCAL evals. Show them with visual distinction in the Eval Rules view, with creation rationale and "learned this session" highlight. Ref: Vision §7, Architecture §7 Dynamic Eval Lifecycle.
+**Description**: Detect and celebrate sentinel-created LOCAL evals. Show them with visual distinction in the Evals view, with creation rationale and "learned this session" highlight. Ref: Vision §7, Architecture §7 Dynamic Eval Lifecycle.
 
 **Acceptance Criteria**:
 - `StateManager` diffs `Extractions.LocalEvals` on each state update to detect new dynamic evals
 - Celebration notification when a new LOCAL eval is created: informational message with eval ID, description, and [Inspect] button
-- LOCAL evals shown in Eval Rules view with sparkle icon / "dynamic" badge
+- LOCAL evals shown in Evals view with sparkle icon / "dynamic" badge
 - Each shows: ID, severity, rule text, rationale, creation timestamp, originating session + sentinel
-- [Inspect] button scrolls to the rule in the Eval Rules view
+- [Inspect] button scrolls to the rule in the Evals view
 - "Edit" button opens rule in a YAML editor webview (read-only preview for Phase 2; full editing in Phase 3)
 
 **Key Files**:
 - `src/stores/state-manager.ts` — add LOCAL eval diff detection
 - `src/ui/sidebar/eval-rules-provider.ts` — dynamic eval rendering
 
-**Dependencies**: P2-2 (Eval Rules view must exist)
+**Dependencies**: P2-2 (Evals view must exist)
 
 ---
 
@@ -749,12 +749,12 @@ Phase 1 is complete when ALL of the following are true:
 **Description**: Implement the one-click promotion of LOCAL evals to permanent rules. Copies a dynamic eval from in-memory state to a YAML file in `.volition/sentinel/evals/<domain>/`. Ref: Vision §7, Architecture §7.
 
 **Acceptance Criteria**:
-- "Promote" action on each LOCAL eval in the Eval Rules view
+- "Promote" action on each LOCAL eval in the Evals view
 - Promotion writes YAML file to `.volition/sentinel/evals/<domain>/<eval-id>.yaml`
 - YAML format matches the existing eval rule schema
 - Confirmation dialog before promotion ("This will make SEC-LOCAL-001 a permanent rule")
 - Success notification with file path
-- Eval Rules view refreshes to show the promoted rule under the permanent domain section
+- Evals view refreshes to show the promoted rule under the permanent domain section
 - Promoted eval ID is de-duplicated (sentinel's `valid_eval_ids` already includes it)
 
 **Key Files**:
@@ -790,10 +790,10 @@ Phase 1 is complete when ALL of the following are true:
 
 ### P2-6: Historical Observation Browsing
 
-**Description**: Support scrolling back through session history in the Live Feed. Implement lazy loading from disk for observations beyond the in-memory cache boundary.
+**Description**: Support scrolling back through session history in the Observations view. Implement lazy loading from disk for observations beyond the in-memory cache boundary.
 
 **Acceptance Criteria**:
-- Live Feed shows most recent observations first (newest at top)
+- Observations view shows most recent observations first (newest at top)
 - Scrolling down loads older observations automatically (infinite scroll pattern)
 - Beyond the in-memory cache (1000 per session), observations are read from disk on demand
 - Loading indicator while reading from disk
@@ -804,7 +804,7 @@ Phase 1 is complete when ALL of the following are true:
 - `src/stores/observation-store.ts` — add lazy loading from disk
 - `src/ui/sidebar/live-feed-provider.ts` — infinite scroll support
 
-**Dependencies**: P1-05 (ObservationStore), P1-06 (Live Feed)
+**Dependencies**: P1-05 (ObservationStore), P1-06 (Observations)
 
 ---
 
@@ -812,8 +812,8 @@ Phase 1 is complete when ALL of the following are true:
 
 Phase 2 is complete when ALL of the following are true:
 
-1. Session Health webview shows charts and metrics for the active session
-2. Eval Rules view displays all rules with hit counts and enable/disable toggles
+1. Insights webview shows charts and metrics for the active session
+2. Evals view displays all rules with hit counts and enable/disable toggles
 3. Dynamic LOCAL evals are detected, celebrated, and displayed distinctly
 4. LOCAL eval promotion writes correct YAML and refreshes the view
 5. Observation cards render CRITICAL/WARNING observations as rich webviews
@@ -822,8 +822,8 @@ Phase 2 is complete when ALL of the following are true:
 8. Webview charts render within 100ms (measured)
 
 **Deliverables**:
-- Session Health webview with charts
-- Eval Rules management panel
+- Insights webview with charts
+- Evals management panel
 - Dynamic eval celebration + promotion workflow
 - Observation card webview
 
@@ -841,18 +841,18 @@ Phase 2 is complete when ALL of the following are true:
 
 ---
 
-### P3-1: "Open Sentinel Chat" Command
+### P3-1: Open Full Conversation Command
 
 **Description**: Implement the command that opens the sentinel's sidechain session as an editor tab. Reads the sentinel session ID from `sentinel-state.json` and invokes `claude-vscode.editor.open`. Ref: Vision §2.4, Architecture §7.
 
 **Acceptance Criteria**:
-- Command `sentinel.openSentinelChat` registered in command palette
+- Command `sentinel.openFullConversation` registered in command palette
 - Reads sentinel session ID from `sentinel-state.json` (sidechain session)
 - Invokes `vscode.commands.executeCommand('claude-vscode.editor.open', sentinelSessionId)`
 - If multiple sentinels (GEN, SEC), shows quick pick to choose which sentinel's chat to open
 - Handles missing sentinel session gracefully (message: "No active sentinel session")
 - Feature-detected: disabled if Claude Code extension not installed
-- Button in activity bar panel header for quick access
+- Accessible via command palette only; button removed from activity bar panel sidebar
 
 **Key Files**:
 - `src/commands/open-sentinel-chat.ts` (NEW)
@@ -868,7 +868,7 @@ Phase 2 is complete when ALL of the following are true:
 **Description**: Implement the natural language → YAML eval creation flow. User describes behavior, LLM generates a YAML eval rule, user reviews and saves. Ref: Vision §6.
 
 **Acceptance Criteria**:
-- "New Eval" button in sidebar (Eval Rules view header) and command palette
+- "New Eval" button in sidebar (Evals view header) and command palette
 - Input panel: text area for natural language description
 - Extension sends description to LLM via the harness adapter (Claude Code CLI or configured endpoint)
 - Generated YAML displayed in a preview webview with syntax highlighting
@@ -893,7 +893,7 @@ Phase 2 is complete when ALL of the following are true:
 **Description**: Full YAML editor webview for inspecting and editing eval rules. Supports both existing permanent evals and dynamic LOCAL evals. Includes syntax highlighting, validation, and save.
 
 **Acceptance Criteria**:
-- Opens from Eval Rules view "Edit" action or from eval creation flow
+- Opens from Evals view "Edit" action or from eval creation flow
 - YAML syntax highlighting in the webview
 - Validation against eval schema (highlights errors inline)
 - Save writes to the eval file on disk
@@ -905,7 +905,7 @@ Phase 2 is complete when ALL of the following are true:
 - `src/ui/webview/eval-editor/` (NEW) — YAML editor webview
 - `src/evals/eval-validator.ts` (NEW) — schema validation
 
-**Dependencies**: P2-2 (Eval Rules view for launch point)
+**Dependencies**: P2-2 (Evals view for launch point)
 
 ---
 
@@ -915,7 +915,7 @@ Phase 2 is complete when ALL of the following are true:
 
 **Acceptance Criteria**:
 - Sidebar webview panel shows: current sentinel status, active sessions, recent observations summary
-- "Open Full Conversation" button that invokes P3-1's `sentinel.openSentinelChat` command to open the sidechain in an editor tab
+- "Open Full Conversation" action via the command palette (`sentinel.openFullConversation`) to open the sidechain in an editor tab
 - Quick input area for short steering messages (delegated to sidechain via harness adapter; responses viewed in the full chat tab)
 - Context section: shows what the sentinel is currently monitoring (active evals, recent observations, last observation timestamp)
 - Does NOT embed or duplicate the full chat experience — it is a dashboard + quick-action surface
@@ -1119,11 +1119,11 @@ Phase 3 is complete when ALL of the following are true:
 
 ### P4-7: Harness Detection for Sentinel Conversation
 
-**Description**: When multiple harnesses are configured, the "Open Sentinel Chat" command opens the conversation in the correct harness's editor. Auto-detect which harness the sentinel is using from config.
+**Description**: When multiple harnesses are configured, the "Open Full Conversation" command (`sentinel.openFullConversation`, accessible via command palette) opens the conversation in the correct harness's editor. Auto-detect which harness the sentinel is using from config.
 
 **Acceptance Criteria**:
-- `openSentinelChat` reads harness from sentinel config
-- Opens conversation using the correct adapter's `openSentinelChat` method
+- `openFullConversation` reads harness from sentinel config
+- Opens conversation using the correct adapter's `openFullConversation` method
 - If harness is ambiguous, shows quick pick for user to choose
 - Works with all implemented adapters
 
@@ -1381,7 +1381,7 @@ Phase 5 is complete when ALL of the following are true:
 - `src/evals/eval-validator.ts` — schema validation
 - `docs/eval-authoring-guide.md` (NEW)
 
-**Dependencies**: P2-2 (Eval Rules view for UI integration)
+**Dependencies**: P2-2 (Evals view for UI integration)
 
 ---
 
@@ -1460,7 +1460,7 @@ Phase 5 is complete when ALL of the following are true:
 - All webview components audited: observation cards, session health, eval editor, sentinel panel
 - Tree views audited: ARIA roles, focus order, keyboard operability
 - Status bar audited: ARIA labels for screen readers
-- Live Feed: ARIA live regions for new observation announcements
+- Observations: ARIA live regions for new observation announcements
 - All severity indicators use icon + label (not color alone)
 - High-contrast theme testing: VS Code High Contrast and High Contrast Light
 - `prefers-reduced-motion` respected for all animations

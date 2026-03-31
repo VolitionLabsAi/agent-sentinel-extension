@@ -13,7 +13,7 @@
 
 A live sidebar feed of every action your AI agent takes. Observations stream in as they happen — file writes, shell commands, tool invocations — all categorized by severity.
 
-> *Screenshot: Live Feed sidebar showing a stream of agent observations — coming soon*
+> *Screenshot: Observations sidebar showing a stream of agent observations — coming soon*
 
 ### Inline Prevention (Tier 0)
 
@@ -99,7 +99,7 @@ All settings are under the `sentinel.*` namespace.
 | `Sentinel: Start Monitoring` | Begin watching for agent observations |
 | `Sentinel: Stop Monitoring` | Stop the file watcher and clear state |
 | `Sentinel: Show Status` | Display current monitoring status |
-| `Sentinel: Open Live Feed` | Focus the sidebar observation feed |
+| `Sentinel: Open Observations` | Focus the sidebar observation feed |
 | `Sentinel: Run Health Check` | Run diagnostics on your setup |
 | `Sentinel: Focus Session` | Switch focus to a specific agent session |
 | `Sentinel: Navigate to Session` | Jump to a session's observations |

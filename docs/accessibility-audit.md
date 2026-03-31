@@ -13,7 +13,7 @@ Each component was checked for: color contrast (theme variable usage), keyboard 
 
 ## Findings
 
-### Component: Session Health Webview
+### Component: Insights Webview
 
 | Check | Status | Notes |
 |-------|--------|-------|
@@ -74,7 +74,7 @@ Each component was checked for: color contrast (theme variable usage), keyboard 
 | Empty states | PASS | Empty charts render with `aria-label` describing the empty state |
 | Presentation elements | PASS | Individual dots/arcs use `role="presentation"` to avoid screen reader noise |
 
-### Component: Tree Views (Live Feed, Eval Rules)
+### Component: Tree Views (Observations, Evals)
 
 | Check | Status | Notes |
 |-------|--------|-------|
