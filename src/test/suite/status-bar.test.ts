@@ -108,7 +108,7 @@ suite('StatusBarManager', () => {
         assert.ok(internal.item.color instanceof vscode.ThemeColor);
     });
 
-    test('severity info shows eye icon with green color', () => {
+    test('severity info shows eye icon with blue color', () => {
         manager.setInitialized(true);
         manager.setHighestSeverity('info');
         const internal = manager as unknown as StatusBarManagerTestable;

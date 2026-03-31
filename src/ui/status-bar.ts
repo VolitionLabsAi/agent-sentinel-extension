@@ -167,8 +167,9 @@ export class StatusBarManager implements vscode.Disposable {
     private getForegroundColor(severity: ObservationSeverityLevel): string | vscode.ThemeColor | undefined {
         switch (severity) {
             case 'none':
-            case 'info':
                 return new vscode.ThemeColor('charts.green');
+            case 'info':
+                return new vscode.ThemeColor('charts.blue');
             case 'warning':
                 return undefined; // let background carry the signal
             case 'critical':
