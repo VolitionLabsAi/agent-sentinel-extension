@@ -27,6 +27,9 @@ export class AboutProvider implements vscode.WebviewViewProvider {
 
     /** Update the last-eval timestamp shown in the status pill. */
     updateLastEvalTime(timestamp: string | undefined): void {
+        if (timestamp && this.lastEvalTimestamp && timestamp <= this.lastEvalTimestamp) {
+            return; // Don't go backwards
+        }
         this.lastEvalTimestamp = timestamp;
         this.pushStateToWebview();
     }

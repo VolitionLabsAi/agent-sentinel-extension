@@ -1003,7 +1003,14 @@ export function activate(context: vscode.ExtensionContext) {
     observationStore.load().then(() => {
         const allObs = observationStore.getObservations();
         if (allObs.length > 0) {
-            aboutProvider.updateLastEvalTime(allObs[allObs.length - 1].timestamp);
+            // Find the most recent observation by timestamp, not array position
+            let mostRecent = allObs[0];
+            for (const obs of allObs) {
+                if (obs.timestamp > mostRecent.timestamp) {
+                    mostRecent = obs;
+                }
+            }
+            aboutProvider.updateLastEvalTime(mostRecent.timestamp);
         }
     }).catch((err) => {
         console.warn('[Agent Sentinel] Initial observation load failed:', err);
