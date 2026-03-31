@@ -1,26 +1,17 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
 import { PersistentObservation } from '../../types/observation.js';
 
 /**
- * Severity metadata: SVG icon filename and accessible label.
- * Uses file-based SVGs so colors persist on list selection/focus
- * (ThemeIcon colors get overridden by VS Code's selection foreground).
+ * Severity metadata: ThemeIcon color and accessible label.
+ * Matches the eval tree item icon style (circle-filled with theme colors).
  */
-const SEVERITY_META: Record<string, { iconFile: string; label: string }> = {
-    critical: { iconFile: 'severity-critical.svg', label: 'CRITICAL' },
-    warning: { iconFile: 'severity-warning.svg', label: 'WARNING' },
-    info: { iconFile: 'severity-info.svg', label: 'INFO' },
+const SEVERITY_META: Record<string, { color: string; label: string }> = {
+    critical: { color: 'charts.red', label: 'CRITICAL' },
+    warning: { color: 'charts.orange', label: 'WARNING' },
+    info: { color: 'charts.blue', label: 'INFO' },
 };
 
-const STATUS_META = { iconFile: 'severity-status.svg', label: 'STATUS' };
-
-let extensionUri: vscode.Uri | undefined;
-
-/** Call once during activation to set the extension root for icon paths. */
-export function setExtensionUri(uri: vscode.Uri): void {
-    extensionUri = uri;
-}
+const STATUS_META = { color: 'charts.blue', label: 'STATUS' };
 
 /**
  * Format a timestamp as a relative string (e.g., '2m ago').
@@ -51,9 +42,7 @@ export class ObservationTreeItem extends vscode.TreeItem {
         super(label, vscode.TreeItemCollapsibleState.Collapsed);
 
         this.description = `${relativeTime(observation.timestamp)}  ${badge}`;
-        if (extensionUri) {
-            this.iconPath = vscode.Uri.joinPath(extensionUri, 'media', 'icons', meta.iconFile);
-        }
+        this.iconPath = new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor(meta.color));
         this.contextValue = `observation.${observation.severity}`;
 
         // P1-14: Clickable observation → navigate to Claude Code session
@@ -121,9 +110,7 @@ export class SessionGroupTreeItem extends vscode.TreeItem {
 
         // Use the icon for the display severity (determined by caller based on config)
         const meta = SEVERITY_META[displaySeverity] ?? STATUS_META;
-        if (extensionUri) {
-            this.iconPath = vscode.Uri.joinPath(extensionUri, 'media', 'icons', meta.iconFile);
-        }
+        this.iconPath = new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor(meta.color));
 
         // Clicking a session group header navigates to that Claude Code conversation
         if (sessionId) {

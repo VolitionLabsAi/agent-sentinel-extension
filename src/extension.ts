@@ -13,7 +13,6 @@ import { ConfigManager } from './stores/config-manager.js';
 import { InsightsProvider } from './ui/sidebar/insights-provider.js';
 import { EvalsProvider } from './ui/sidebar/evals-provider.js';
 import { EvalTreeItem, DynamicEvalTreeItem } from './ui/sidebar/eval-tree-item.js';
-import { setExtensionUri } from './ui/sidebar/observation-tree-item.js';
 import { ObservationCardPanel } from './ui/webview/observation-card-panel.js';
 import { promoteLocalEval } from './evals/eval-promotion.js';
 import { HarnessAdapterRegistry } from './adapters/adapter-registry.js';
@@ -66,9 +65,6 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Late-bound reference so sentinel.start command can use the correlator
     let sessionCorrelatorRef: import('./correlation/session-correlator.js').SessionCorrelator | undefined;
-
-    // Set extension URI for file-based severity icons
-    setExtensionUri(context.extensionUri);
 
     const statusBar = new StatusBarManager(context);
     context.subscriptions.push(statusBar);
