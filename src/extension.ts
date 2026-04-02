@@ -723,7 +723,7 @@ export function activate(context: vscode.ExtensionContext) {
             // Show the severity of the most recent observation within the window.
             // Returns undefined when no observations exist in the window → show 'none'.
             const recentSev = observationStore.getMostRecentSeverity(sessionFilter ?? undefined, maxAgeMs);
-            severity = (recentSev as 'info' | 'warning' | 'critical' | undefined) ?? 'none';
+            severity = recentSev ?? 'none';
         } else {
             // 'highest' mode: show the worst severity across all observations in the window.
             // getHighestSeverity already returns 'none' when no observations exist in the window.

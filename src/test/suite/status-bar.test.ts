@@ -232,6 +232,64 @@ suite('StatusBarManager', () => {
         assert.strictEqual(internal.item.command, 'sentinel.openObservations');
     });
 
+    // ── Status bar mode: recent vs. pinned ─────────────────
+
+    test('recent mode shows "Recent" in status bar text and tooltip', () => {
+        manager.setInitialized(true);
+        manager.setHighestSeverity('info');
+        manager.setSessionContext('Recent');
+        const internal = manager as unknown as StatusBarManagerTestable;
+        assert.ok(internal.item.text.includes('(Recent)'), `Expected '(Recent)' in text, got: ${internal.item.text}`);
+        const tooltip = internal.item.tooltip as vscode.MarkdownString;
+        assert.ok(tooltip.value.includes('View: Recent'), 'Tooltip should include View: Recent');
+    });
+
+    test('recent mode with session detail shows detail in tooltip', () => {
+        manager.setInitialized(true);
+        manager.setHighestSeverity('none');
+        manager.setSessionContext('Recent', 'my-active-session');
+        const internal = manager as unknown as StatusBarManagerTestable;
+        assert.ok(internal.item.text.includes('(Recent)'), `Expected '(Recent)' in text, got: ${internal.item.text}`);
+        const tooltip = internal.item.tooltip as vscode.MarkdownString;
+        assert.ok(tooltip.value.includes('View: Recent'), 'Tooltip should include View: Recent');
+        assert.ok(tooltip.value.includes('Session: my-active-session'), 'Tooltip should include session detail');
+    });
+
+    test('pinned mode shows "Pinned" in status bar text and tooltip', () => {
+        manager.setInitialized(true);
+        manager.setHighestSeverity('warning');
+        manager.setSessionContext('Pinned');
+        const internal = manager as unknown as StatusBarManagerTestable;
+        assert.ok(internal.item.text.includes('(Pinned)'), `Expected '(Pinned)' in text, got: ${internal.item.text}`);
+        const tooltip = internal.item.tooltip as vscode.MarkdownString;
+        assert.ok(tooltip.value.includes('View: Pinned'), 'Tooltip should include View: Pinned');
+    });
+
+    test('pinned mode with session detail shows detail in tooltip', () => {
+        manager.setInitialized(true);
+        manager.setHighestSeverity('critical');
+        manager.setSessionContext('Pinned', 'sess-abc-123');
+        const internal = manager as unknown as StatusBarManagerTestable;
+        assert.ok(internal.item.text.includes('(Pinned)'), `Expected '(Pinned)' in text, got: ${internal.item.text}`);
+        const tooltip = internal.item.tooltip as vscode.MarkdownString;
+        assert.ok(tooltip.value.includes('View: Pinned'), 'Tooltip should include View: Pinned');
+        assert.ok(tooltip.value.includes('Session: sess-abc-123'), 'Tooltip should include session detail');
+    });
+
+    test('switching from pinned to recent updates status bar text', () => {
+        manager.setInitialized(true);
+        manager.setHighestSeverity('info');
+        manager.setSessionContext('Pinned', 'some-session');
+        const internal = manager as unknown as StatusBarManagerTestable;
+        assert.ok(internal.item.text.includes('(Pinned)'), 'Should show Pinned initially');
+
+        manager.setSessionContext('Recent');
+        assert.ok(internal.item.text.includes('(Recent)'), `Expected '(Recent)' after switch, got: ${internal.item.text}`);
+        assert.ok(!internal.item.text.includes('Pinned'), 'Should no longer show Pinned');
+        const tooltip = internal.item.tooltip as vscode.MarkdownString;
+        assert.ok(!tooltip.value.includes('Session: some-session'), 'Old session detail should be cleared');
+    });
+
     // ── Dispose ──────────────────────────────────────────────
 
     test('dispose does not throw', () => {

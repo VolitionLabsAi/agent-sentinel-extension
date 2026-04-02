@@ -435,7 +435,7 @@ export class ObservationStore implements vscode.Disposable {
      * Returns undefined if no observations exist within the scope/window,
      * so callers can distinguish "no data" from a low-severity observation.
      */
-    getMostRecentSeverity(sessionFilter?: string, maxAgeMs?: number): string | undefined {
+    getMostRecentSeverity(sessionFilter?: string, maxAgeMs?: number): 'info' | 'warning' | 'critical' | undefined {
         const cutoff = maxAgeMs !== undefined ? Date.now() - maxAgeMs : 0;
 
         let mostRecentObs: PersistentObservation | undefined;
